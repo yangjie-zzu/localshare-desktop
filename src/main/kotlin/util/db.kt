@@ -9,6 +9,7 @@ import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.Statement
 import java.sql.Types
+import java.util.Date
 import java.util.regex.Pattern
 import kotlin.concurrent.getOrSet
 import kotlin.coroutines.resume
@@ -53,6 +54,7 @@ fun getSqliteType(clazz: Type?): String? {
         java.lang.Double::class.java -> "REAL"
         BigDecimal::class.java -> "NUMERIC"
         ByteArray::class.java -> "BLOB"
+        Date::class.java -> "TEXT"
         else -> null
     }
 }
@@ -165,6 +167,7 @@ suspend inline fun <reified T> queryList(sql: String?, args: Array<String>? = nu
                                     java.lang.Double::class.java -> resultSet.getDouble(index)
                                     BigDecimal::class.java -> if (resultSet.getString(index) != null) BigDecimal(resultSet.getString(index)) else null
                                     ByteArray::class.java -> resultSet.getBlob(index)
+                                    Date::class.java -> resultSet.getString(index)?.toDate()
                                     else -> null
                                 }
                             } else {
@@ -202,7 +205,11 @@ suspend inline fun <reified T : Any> save(data: T) {
                     if (value == null) {
                         "null"
                     } else if (item.type == "TEXT") {
-                        "\"${value}\""
+                        if (item.javaType == Date::class.java) {
+                            (value as Date).format()
+                        } else {
+                            "\"${value}\""
+                        }
                     } else {
                         value
                     }

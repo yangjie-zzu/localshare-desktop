@@ -1,5 +1,9 @@
 package util
 
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.regex.Pattern
+
 fun String.toUnderCase(): String {
     val len = this.length
     val res = StringBuilder(len + 2);
@@ -25,4 +29,9 @@ fun String.toFirstLower(): String {
         return this
     }
     return this.first().lowercaseChar() + this.substring(1)
+}
+
+fun String.toDate(pattern: String = "yyyy-MM-dd HH:mm:ss"): Date {
+    val simpleDateFormat = SimpleDateFormat(pattern)
+    return simpleDateFormat.parse(this)
 }
