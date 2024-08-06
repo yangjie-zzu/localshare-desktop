@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.awt.ComposeWindow
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerButton
@@ -23,6 +24,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.*
+import com.darkrockstudios.libraries.mpfilepicker.FilePicker
 import com.fasterxml.jackson.core.util.DefaultIndenter
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter
 import com.fasterxml.jackson.databind.SerializationFeature
@@ -41,9 +43,11 @@ import model.DeviceTransfer
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import util.*
+import java.awt.FileDialog
 import java.awt.GraphicsEnvironment
 import java.net.InetAddress
 import java.util.UUID
+import javax.swing.JFileChooser
 import kotlin.reflect.KClass
 
 val logger: Logger = LoggerFactory.getLogger("share")
@@ -155,7 +159,7 @@ fun App() {
                 }
                 Box(modifier = Modifier.fillMaxHeight().background(color = Color.LightGray).width(1.dp))
                 Column(
-                    modifier = Modifier.weight(1f).requiredWidth(500.dp)
+                    modifier = Modifier.weight(1f).sizeIn(minWidth = 500.dp).padding(start = 10.dp)
                 ) {
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         itemsIndexed(
@@ -200,17 +204,54 @@ fun App() {
                             }
                         }
                     }
-                    Column {
-                        Button(
-                            onClick = {}
-                        ) {
-                            Text(text = "选择文件")
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        var filePath by remember {
+                            mutableStateOf<String?>(null)
                         }
-                        TextField(value = "", onValueChange = {}, modifier = Modifier.weight(1f))
+                        var content by remember {
+                            mutableStateOf<String?>(null)
+                        }
+                        var showFilePicker by remember { mutableStateOf(false) }
+
+                        val fileType = listOf("*")
+                        FilePicker(show = showFilePicker, fileExtensions = fileType) { platformFile ->
+                            showFilePicker = false
+                            filePath = platformFile?.path
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Box(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        showFilePicker = true
+                                    }
+                                ) {
+                                    Text(text = filePath ?: "选择文件")
+                                }
+                            }
+                            if (filePath != null) {
+                                Box(
+                                    modifier = Modifier.size(48.dp).padding(5.dp).clickable {
+                                        filePath = null
+                                    }
+                                ) {
+                                    Image(
+                                        painter = painterResource("删除(1).svg"),
+                                        contentDescription = null
+                                    )
+                                }
+                            }
+                        }
+                        TextField(value = content ?: "", onValueChange = {content = it}, placeholder = { Text(text = "输入要发送的文字") })
                         Button(
                             onClick = {}
                         ) {
-                            Text(text = "发送")
+                            Text(text = "发送${if (filePath != null) "文件" else if (content?.isNotEmpty() == true) "文字" else ""}")
                         }
                     }
                 }
@@ -259,7 +300,7 @@ fun main() = application {
             logger.info("select 1: ${queryMap("select 1")}")
         }
         logger.info("表结构同步开始")
-        listOf<KClass<out Any>>(Device::class).forEach {
+        listOf(Device::class, DeviceTransfer::class).forEach {
             updateTableStruct(it)
         }
         logger.info("表结构同步成功")

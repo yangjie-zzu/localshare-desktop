@@ -55,6 +55,7 @@ fun getSqliteType(clazz: Type?): String? {
         BigDecimal::class.java -> "NUMERIC"
         ByteArray::class.java -> "BLOB"
         Date::class.java -> "TEXT"
+        java.lang.Boolean::class.java -> "INTEGER"
         else -> null
     }
 }
@@ -168,6 +169,7 @@ suspend inline fun <reified T> queryList(sql: String?, args: Array<String>? = nu
                                     BigDecimal::class.java -> if (resultSet.getString(index) != null) BigDecimal(resultSet.getString(index)) else null
                                     ByteArray::class.java -> resultSet.getBlob(index)
                                     Date::class.java -> resultSet.getString(index)?.toDate()
+                                    Boolean::class.java -> (resultSet.getInt(index)).let { if (it == 0) false else null }
                                     else -> null
                                 }
                             } else {
@@ -188,6 +190,24 @@ suspend inline fun <reified T> queryOne(sql: String?, args: Array<String>? = nul
     return list.first()
 }
 
+inline fun <reified T : Any> getValue(columnInfo: ColumnInfo, data: T): Any {
+    val value = columnInfo.kProperty?.getter?.call(data)
+    if (value == null) {
+        return "null"
+    }
+    if (columnInfo.type == "TEXT") {
+        if (columnInfo.javaType == Date::class.java) {
+            return (value as Date).format()
+        } else {
+            return "\"${value}\""
+        }
+    }
+    if (columnInfo.javaType == Boolean::class.java) {
+        return (value as Boolean).let { if (it) 1 else 0 }
+    }
+    return value
+}
+
 suspend inline fun <reified T : Any> save(data: T) {
     return suspendCoroutine { continuation ->
         runSql { conn ->
@@ -197,23 +217,11 @@ suspend inline fun <reified T : Any> save(data: T) {
             val columns = tableInfo.columns
             val primaryKeyColumn = columns?.find { it.isPrimaryKey == true }
             val primaryValue = if (primaryKeyColumn != null) primaryKeyColumn.kProperty?.getter?.call(data) else null
+
             if (primaryKeyColumn == null || primaryValue == null) {
                 val sql = """
                     insert into ${tableName} (${columns?.joinToString(", ") { item -> item.name?: "" }}) values (
-                    ${columns?.map{ item ->
-                    val value = item.kProperty?.getter?.call(data)
-                    if (value == null) {
-                        "null"
-                    } else if (item.type == "TEXT") {
-                        if (item.javaType == Date::class.java) {
-                            (value as Date).format()
-                        } else {
-                            "\"${value}\""
-                        }
-                    } else {
-                        value
-                    }
-                }?.joinToString(", ")})
+                    ${columns?.map{ item -> getValue(item, data) }?.joinToString(", ")})
                 """.trimIndent()
                 logger.info("save: $sql")
                 val sqlStatement = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)
@@ -231,30 +239,8 @@ suspend inline fun <reified T : Any> save(data: T) {
             } else {
                 val sql = """
                     update ${tableName} set ${
-                    columns.joinToString(", ") {
-                        val value = it.kProperty?.getter?.call(data)
-                        "${it.name} = ${
-                            if (value == null) {
-                                "null"
-                            } else if (it.type == "TEXT") {
-                                "\"${value}\""
-                            } else {
-                                value
-                            }
-                        }"
-                    }
-                } where ${primaryKeyColumn.name} = ${
-                    run {
-                        val id = primaryKeyColumn.kProperty?.getter?.call(data)
-                        if (id == null) {
-                            "null"
-                        } else if (primaryKeyColumn.type == "TEXT") {
-                            "\"${id}\""
-                        } else {
-                            id
-                        }
-                    }
-                }
+                    columns.joinToString(", ") { "${it.name} = ${getValue(it, data)}" }
+                } where ${primaryKeyColumn.name} = ${getValue(primaryKeyColumn, data)}
                 """.trimIndent()
                 logger.info("update: ${sql}")
                 val sqlStatement = conn.prepareStatement(sql)

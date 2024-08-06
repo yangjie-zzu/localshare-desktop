@@ -28,6 +28,7 @@ dependencies {
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.17.0")
     implementation("ch.qos.logback:logback-classic:1.5.3")
     implementation("org.xerial:sqlite-jdbc:3.46.0.0")
+    implementation("com.darkrockstudios:mpfilepicker:3.1.0")
 }
 
 compose.desktop {
