@@ -121,7 +121,9 @@ fun App() {
                                     logger.info("位置: ${position.x}, ${position.y}")
                                     offsetX = position.x
                                     offsetY = position.y
-                                }
+                                }.padding(5.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             if (show) {
                                 Popup(
@@ -148,10 +150,12 @@ fun App() {
                                     }
                                 }
                             }
-                            Box(
-                                modifier = Modifier.fillMaxSize().padding(10.dp)
-                            ) {
+                            Column{
                                 Text("${item.name}")
+                                Text("${item.ip}:${item.port}", fontSize = 12.sp)
+                            }
+                            Column {
+                                Text("${item.osName}")
                             }
                         }
                         Divider()
