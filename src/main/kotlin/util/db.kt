@@ -147,14 +147,6 @@ suspend inline fun <reified T> queryList(sql: String?, args: Array<String>? = nu
                     val list = mutableListOf<T>()
                     val clazz = T::class
                     val constructor = clazz.constructors.first()
-                    val metadata = resultSet.metaData
-                    val columnNames = run {
-                        val set = mutableSetOf<String>()
-                        for (index in 1 until metadata.columnCount + 1) {
-                            set.add(metadata.getColumnName(index))
-                        }
-                        set
-                    }
                     while (resultSet.next()) {
                         list.add(constructor.call(*(constructor.parameters.map { parameter ->
                             val colName = parameter.name?.toUnderCase()
