@@ -11,8 +11,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.awt.ComposeWindow
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -39,16 +37,13 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.coroutines.*
 import model.Device
-import model.DeviceTransfer
+import model.DeviceMessage
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import util.*
-import java.awt.FileDialog
 import java.awt.GraphicsEnvironment
 import java.net.InetAddress
 import java.util.UUID
-import javax.swing.JFileChooser
-import kotlin.reflect.KClass
 
 val logger: Logger = LoggerFactory.getLogger("share")
 
@@ -80,18 +75,18 @@ fun App() {
                 var activeDevice by remember {
                     mutableStateOf<Device?>(null)
                 }
-                val deviceTransfers = remember {
-                    mutableStateListOf<DeviceTransfer>()
+                val deviceMessages = remember {
+                    mutableStateListOf<DeviceMessage>()
                 }
-                suspend fun requestTransfers(deviceId: Long?) {
-                    deviceTransfers.clear()
+                suspend fun requestMessages(deviceId: Long?) {
+                    deviceMessages.clear()
                     if (deviceId == null) {
                         return
                     }
-                    deviceTransfers.addAll(queryList("select * from device_transfer where device_id = $deviceId"))
+                    deviceMessages.addAll(queryList("select * from device_message where device_id = $deviceId"))
                 }
                 LaunchedEffect(Unit) {
-                    requestTransfers(activeDevice?.id)
+                    requestMessages(activeDevice?.id)
                 }
                 LazyColumn(
                     modifier = Modifier.width(200.dp)
@@ -111,7 +106,7 @@ fun App() {
                             modifier = Modifier.clickable {
                                 activeDevice = item
                                 CoroutineScope(Dispatchers.Default).launch {
-                                    requestTransfers(item.id)
+                                    requestMessages(item.id)
                                 }
                             }.fillMaxWidth()
                                 .onClick(matcher = PointerMatcher.mouse(PointerButton.Secondary)) {
@@ -167,7 +162,7 @@ fun App() {
                 ) {
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         itemsIndexed(
-                            items = deviceTransfers,
+                            items = deviceMessages,
                             key = {_, item -> item.id.toString()}
                         ) {_, item ->
                             if (item.type == "receive") {
@@ -304,7 +299,7 @@ fun main() = application {
             logger.info("select 1: ${queryMap("select 1")}")
         }
         logger.info("表结构同步开始")
-        listOf(Device::class, DeviceTransfer::class).forEach {
+        listOf(Device::class, DeviceMessage::class).forEach {
             updateTableStruct(it)
         }
         logger.info("表结构同步成功")

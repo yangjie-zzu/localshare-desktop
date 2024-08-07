@@ -3,7 +3,7 @@ package model
 import util.Column
 import java.util.Date
 
-data class DeviceTransfer(
+data class DeviceMessage(
     @Column(isPrimaryKey = true)
     var id: Long? = null,
     var deviceId: Long? = null,
