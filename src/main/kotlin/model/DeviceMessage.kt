@@ -7,6 +7,7 @@ data class DeviceMessage(
     @Column(isPrimaryKey = true)
     var id: Long? = null,
     var deviceId: Long? = null,
+    var clientId: String? = null,
     var createdTime: Date? = null,
     var type: String? = null,
     var dataType: String? = null,

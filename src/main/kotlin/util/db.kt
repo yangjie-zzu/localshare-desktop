@@ -177,9 +177,9 @@ suspend inline fun <reified T> queryList(sql: String?, args: Array<String>? = nu
 }
 
 suspend inline fun <reified T> queryOne(sql: String?, args: Array<String>? = null): T? {
-    logger.info("queryOne: ${sql}")
+    logger.info("queryOne: $sql")
     val list = queryList<T>(sql = sql, args = args)
-    return list.first()
+    return list.firstOrNull()
 }
 
 inline fun <reified T : Any> getValue(columnInfo: ColumnInfo, data: T): Any {

@@ -38,6 +38,7 @@ import io.ktor.server.routing.*
 import kotlinx.coroutines.*
 import model.Device
 import model.DeviceMessage
+import model.SysInfo
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import util.*
@@ -108,7 +109,7 @@ fun App() {
                                 CoroutineScope(Dispatchers.Default).launch {
                                     requestMessages(item.id)
                                 }
-                            }.fillMaxWidth()
+                            }.fillMaxWidth().background(color = if (activeDevice?.id == item.id) Color.LightGray else Color.Transparent)
                                 .onClick(matcher = PointerMatcher.mouse(PointerButton.Secondary)) {
                                     show = true
                                 }.onPointerEvent(eventType = PointerEventType.Press) {
@@ -157,101 +158,140 @@ fun App() {
                     }
                 }
                 Box(modifier = Modifier.fillMaxHeight().background(color = Color.LightGray).width(1.dp))
-                Column(
+                Box(
                     modifier = Modifier.weight(1f).sizeIn(minWidth = 500.dp).padding(start = 10.dp)
                 ) {
-                    LazyColumn(modifier = Modifier.weight(1f)) {
-                        itemsIndexed(
-                            items = deviceMessages,
-                            key = {_, item -> item.id.toString()}
-                        ) {_, item ->
-                            if (item.type == "receive") {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    Box {
-                                        Text(text = "收")
+                    if (activeDevice != null) {
+                        Column(
+                        ) {
+                            LazyColumn(modifier = Modifier.weight(1f)) {
+                                itemsIndexed(
+                                    items = deviceMessages,
+                                    key = {_, item -> item.id.toString()}
+                                ) {_, item ->
+                                    if (item.type == "receive") {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            Box {
+                                                Text(text = "收")
+                                            }
+                                            Column(
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Text(text = item.filename ?: "")
+                                                SelectionContainer {
+                                                    Text(text = item.content ?: "")
+                                                }
+                                            }
+                                        }
                                     }
-                                    Column(
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Text(text = item.filename ?: "")
-                                        SelectionContainer {
-                                            Text(text = item.content ?: "")
+                                    if (item.type == "send") {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Text(text = item.filename ?: "")
+                                                SelectionContainer {
+                                                    Text(text = item.content ?: "")
+                                                }
+                                            }
+                                            Box {
+                                                Text(text = "发")
+                                            }
                                         }
                                     }
                                 }
                             }
-                            if (item.type == "send") {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                var filePath by remember {
+                                    mutableStateOf<String?>(null)
+                                }
+                                var content by remember {
+                                    mutableStateOf<String?>(null)
+                                }
+                                var showFilePicker by remember { mutableStateOf(false) }
+
+                                val fileType = listOf("*")
+                                FilePicker(show = showFilePicker, fileExtensions = fileType) { platformFile ->
+                                    showFilePicker = false
+                                    filePath = platformFile?.path
+                                }
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Column(
+                                    Box(
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        Text(text = item.filename ?: "")
-                                        SelectionContainer {
-                                            Text(text = item.content ?: "")
+                                        Button(
+                                            onClick = {
+                                                showFilePicker = true
+                                            }
+                                        ) {
+                                            Text(text = filePath ?: "选择文件")
                                         }
                                     }
-                                    Box {
-                                        Text(text = "发")
+                                    if (filePath != null) {
+                                        Box(
+                                            modifier = Modifier.size(48.dp).padding(5.dp).clickable {
+                                                filePath = null
+                                            }
+                                        ) {
+                                            Image(
+                                                painter = painterResource("删除(1).svg"),
+                                                contentDescription = null
+                                            )
+                                        }
                                     }
                                 }
+                                TextField(value = content ?: "", onValueChange = {content = it}, placeholder = { Text(text = "输入要发送的文字") })
+                                Button(
+                                    onClick = {}
+                                ) {
+                                    Text(text = "发送${if (filePath != null) "文件" else if (content?.isNotEmpty() == true) "文字" else ""}")
+                                }
                             }
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("未选中左侧设备")
                         }
                     }
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(5.dp)
-                    ) {
-                        var filePath by remember {
-                            mutableStateOf<String?>(null)
-                        }
-                        var content by remember {
-                            mutableStateOf<String?>(null)
-                        }
-                        var showFilePicker by remember { mutableStateOf(false) }
+                }
+                Box(modifier = Modifier.fillMaxHeight().background(color = Color.LightGray).width(1.dp))
+                Column(
+                    modifier = Modifier.padding(5.dp)
+                ) {
+                    var self by remember {
+                        mutableStateOf(getDevice())
+                    }
 
-                        val fileType = listOf("*")
-                        FilePicker(show = showFilePicker, fileExtensions = fileType) { platformFile ->
-                            showFilePicker = false
-                            filePath = platformFile?.path
+                    fun querySelf() {
+                        self = getDevice()
+                    }
+
+                    SelectionContainer {
+                        Column {
+                            Text("name: ${self.name}")
+                            Text("ip: ${self.ip}")
+                            Text("port: ${self.port}")
+                            Text("channelType: ${self.channelType}")
+                            Text("osName: ${self.osName}")
+                            Text("networkType: ${self.networkType}")
+                            Text("wifiName: ${self.wifiName}")
                         }
-                        Row(
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Box(
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Button(
-                                    onClick = {
-                                        showFilePicker = true
-                                    }
-                                ) {
-                                    Text(text = filePath ?: "选择文件")
-                                }
-                            }
-                            if (filePath != null) {
-                                Box(
-                                    modifier = Modifier.size(48.dp).padding(5.dp).clickable {
-                                        filePath = null
-                                    }
-                                ) {
-                                    Image(
-                                        painter = painterResource("删除(1).svg"),
-                                        contentDescription = null
-                                    )
-                                }
-                            }
-                        }
-                        TextField(value = content ?: "", onValueChange = {content = it}, placeholder = { Text(text = "输入要发送的文字") })
-                        Button(
-                            onClick = {}
-                        ) {
-                            Text(text = "发送${if (filePath != null) "文件" else if (content?.isNotEmpty() == true) "文字" else ""}")
-                        }
+                    }
+                    Button(onClick = {querySelf()}) {
+                        Text("刷新")
                     }
                 }
             }
@@ -279,9 +319,11 @@ val LocalWindow = compositionLocalOf<WindowState?> { null }
 
 var serverPort: Int? = 20000
 
+var clientId: String? = null
+
 fun getDevice(): Device {
     val device = Device()
-    device.clientId = UUID.randomUUID().toString()
+    device.clientId = clientId
     device.name = InetAddress.getLocalHost().hostName
     device.ip = InetAddress.getLocalHost().hostAddress
     device.port = serverPort
@@ -299,10 +341,21 @@ fun main() = application {
             logger.info("select 1: ${queryMap("select 1")}")
         }
         logger.info("表结构同步开始")
-        listOf(Device::class, DeviceMessage::class).forEach {
+        listOf(Device::class, DeviceMessage::class, SysInfo::class).forEach {
             updateTableStruct(it)
         }
         logger.info("表结构同步成功")
+        clientId = run {
+            var sysInfo = queryOne<SysInfo>("select * from sys_info where name = 'client_id'")
+            if (sysInfo == null) {
+                sysInfo = SysInfo(
+                    name = "client_id",
+                    value = UUID.randomUUID().toString()
+                )
+                save(sysInfo)
+            }
+            sysInfo.value
+        }
     }
     embeddedServer(Netty, applicationEngineEnvironment {
         log = LoggerFactory.getLogger("ktor.server")
@@ -513,7 +566,6 @@ fun main() = application {
                             }
                         }
                     }
-                    Divider()
                     App()
                 }
             }
