@@ -275,7 +275,7 @@ fun App() {
                 }
                 Box(modifier = Modifier.fillMaxHeight().background(color = Color.LightGray).width(1.dp))
                 Column(
-                    modifier = Modifier.width(250.dp).padding(top = 5.dp, start = 10.dp, end = 10.dp),
+                    modifier = Modifier.width(250.dp).padding(top = 5.dp, start = 12.dp, end = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     var self by remember {
