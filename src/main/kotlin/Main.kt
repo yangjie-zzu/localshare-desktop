@@ -11,6 +11,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -27,6 +29,9 @@ import com.fasterxml.jackson.core.util.DefaultIndenter
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
+import com.google.zxing.EncodeHintType
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
+import com.google.zxing.qrcode.encoder.Encoder
 import io.ktor.serialization.jackson.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -208,6 +213,7 @@ fun App() {
                                 }
                             }
                             Column(
+                                modifier = Modifier.padding(bottom = 5.dp),
                                 verticalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
                                 var filePath by remember {
@@ -269,7 +275,8 @@ fun App() {
                 }
                 Box(modifier = Modifier.fillMaxHeight().background(color = Color.LightGray).width(1.dp))
                 Column(
-                    modifier = Modifier.padding(5.dp)
+                    modifier = Modifier.width(250.dp).padding(top = 5.dp, start = 10.dp, end = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     var self by remember {
                         mutableStateOf(getDevice())
@@ -279,8 +286,12 @@ fun App() {
                         self = getDevice()
                     }
 
-                    SelectionContainer {
-                        Column {
+                    SelectionContainer(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
                             Text("name: ${self.name}")
                             Text("ip: ${self.ip}")
                             Text("port: ${self.port}")
@@ -290,8 +301,51 @@ fun App() {
                             Text("wifiName: ${self.wifiName}")
                         }
                     }
-                    Button(onClick = {querySelf()}) {
-                        Text("刷新")
+                    val url = "http://${self.ip}:${self.port}/exchange"
+                    val byteMatrix = remember(url) {
+                        Encoder.encode(
+                            url,
+                            ErrorCorrectionLevel.H,
+                            mapOf(
+                                EncodeHintType.CHARACTER_SET to "UTF-8",
+                                EncodeHintType.MARGIN to 16,
+                                EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.H
+                            )
+                        ).matrix
+                    }
+                    Box(
+                        modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+//                        contentAlignment = Alignment.Center
+                    ) {
+                        Canvas(
+                            modifier = Modifier.fillMaxWidth().background(Color.Transparent)
+                        ) {
+                            byteMatrix?.let {
+                                val cellSize = size.width / byteMatrix.width
+                                for (x in 0 until byteMatrix.width) {
+                                    for (y in 0 until byteMatrix.height) {
+                                        drawRect(
+                                            color = if (byteMatrix.get(x, y) == 1.toByte()) Color.Black else Color.White,
+                                            topLeft = Offset(x * cellSize, y * cellSize),
+                                            size = Size(cellSize, cellSize)
+                                        )
+//                                        drawCircle(
+//                                            color = if (byteMatrix.get(x, y) == 1.toByte()) Color.Black else Color.White,
+//                                            center = Offset(x * cellSize + cellSize / 2, y * cellSize + cellSize / 2),
+//                                            radius = cellSize / 2
+//                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Button(onClick = {querySelf()}) {
+                            Text("刷新")
+                        }
                     }
                 }
             }
