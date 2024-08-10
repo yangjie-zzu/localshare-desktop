@@ -292,13 +292,13 @@ fun App() {
                         Column(
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("name: ${self.name}")
-                            Text("ip: ${self.ip}")
-                            Text("port: ${self.port}")
-                            Text("channelType: ${self.channelType}")
-                            Text("osName: ${self.osName}")
-                            Text("networkType: ${self.networkType}")
-                            Text("wifiName: ${self.wifiName}")
+                            Text("name: ${self.name ?: ""}")
+                            Text("ip: ${self.ip ?: ""}")
+                            Text("port: ${self.port ?: ""}")
+                            Text("channelType: ${self.channelType ?: ""}")
+                            Text("osName: ${self.osName ?: ""}")
+                            Text("networkType: ${self.networkType ?: ""}")
+                            Text("wifiName: ${self.wifiName ?: ""}")
                         }
                     }
                     val url = "http://${self.ip}:${self.port}/exchange"
