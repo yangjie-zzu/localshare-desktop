@@ -27,11 +27,18 @@ import androidx.compose.ui.window.*
 import com.darkrockstudios.libraries.mpfilepicker.FilePicker
 import com.fasterxml.jackson.core.util.DefaultIndenter
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import com.google.zxing.qrcode.encoder.Encoder
+import component.Frame
+import io.ktor.client.*
+import io.ktor.client.plugins.*
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.http.*
 import io.ktor.serialization.jackson.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -43,15 +50,33 @@ import io.ktor.server.routing.*
 import kotlinx.coroutines.*
 import model.Device
 import model.DeviceMessage
+import model.DeviceMessageSend
 import model.SysInfo
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import util.*
 import java.awt.GraphicsEnvironment
 import java.net.InetAddress
-import java.util.UUID
+import java.util.*
 
 val logger: Logger = LoggerFactory.getLogger("share")
+
+val httpClient = HttpClient {
+    install(HttpTimeout) {
+        requestTimeoutMillis = 60000
+    }
+}
+
+val objectMapper = run {
+    val mapper = ObjectMapper()
+    mapper.configure(SerializationFeature.INDENT_OUTPUT, true)
+    mapper.setDefaultPrettyPrinter(DefaultPrettyPrinter().apply {
+        indentArraysWith(DefaultPrettyPrinter.FixedSpaceIndenter.instance)
+        indentObjectsWith(DefaultIndenter("  ", "\n"))
+    })
+    mapper.registerModule(JavaTimeModule())  // support java.time.* types
+    mapper
+}
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -66,15 +91,16 @@ fun App() {
                 }
                 val requestDevices = suspend {
                     val list = queryList<Device>("select * from device")
-                    logger.info("${list.size}")
+                    logger.info("device size: ${list.size}")
                     devices.clear()
                     devices.addAll(list)
                 }
                 LaunchedEffect(Unit) {
                     requestDevices()
                 }
-                onDeviceEvent {
-                    suspend {
+                onEvent(deviceEvent) {
+                    logger.info("触发设备事件")
+                    CoroutineScope(Dispatchers.IO).launch {
                         requestDevices()
                     }
                 }
@@ -216,7 +242,7 @@ fun App() {
                                 modifier = Modifier.padding(bottom = 5.dp),
                                 verticalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
-                                var filePath by remember {
+                                var filepath by remember {
                                     mutableStateOf<String?>(null)
                                 }
                                 var content by remember {
@@ -227,7 +253,7 @@ fun App() {
                                 val fileType = listOf("*")
                                 FilePicker(show = showFilePicker, fileExtensions = fileType) { platformFile ->
                                     showFilePicker = false
-                                    filePath = platformFile?.path
+                                    filepath = platformFile?.path
                                 }
                                 Row(
                                     modifier = Modifier.fillMaxWidth()
@@ -240,13 +266,13 @@ fun App() {
                                                 showFilePicker = true
                                             }
                                         ) {
-                                            Text(text = filePath ?: "选择文件")
+                                            Text(text = filepath ?: "选择文件")
                                         }
                                     }
-                                    if (filePath != null) {
+                                    if (filepath != null) {
                                         Box(
                                             modifier = Modifier.size(48.dp).padding(5.dp).clickable {
-                                                filePath = null
+                                                filepath = null
                                             }
                                         ) {
                                             Image(
@@ -258,9 +284,42 @@ fun App() {
                                 }
                                 TextField(value = content ?: "", onValueChange = {content = it}, placeholder = { Text(text = "输入要发送的文字") })
                                 Button(
-                                    onClick = {}
+                                    onClick = {
+                                        CoroutineScope(Dispatchers.IO).launch {
+                                            val deviceMessage = DeviceMessage(
+                                                type = "send",
+                                                content = content,
+                                                filename = run {
+                                                    val ary = filepath?.split("/")
+                                                    if (ary?.isNotEmpty() == true) {
+                                                        ary[ary.size - 1]
+                                                    } else {
+                                                        null
+                                                    }
+                                                },
+                                                isFile = filepath?.isNotEmpty() == true,
+                                                deviceId = activeDevice?.id,
+                                                createdTime = Date()
+                                            )
+                                            save(deviceMessage)
+                                            val deviceMessageSend = DeviceMessageSend(
+                                                deviceMessageId = deviceMessage.id,
+                                                filepath = filepath,
+                                                clientId = activeDevice?.clientId
+                                            )
+                                            save(deviceMessageSend)
+                                            val response = httpClient.post("http://${activeDevice?.ip}:${activeDevice?.port}/message") {
+                                                setBody(objectMapper.writeValueAsString(deviceMessageSend))
+                                                contentType(ContentType.Application.Json)
+                                            }
+                                            if (response.status == HttpStatusCode.OK) {
+                                                val body = response.bodyAsText()
+                                                TODO()
+                                            }
+                                        }
+                                    }
                                 ) {
-                                    Text(text = "发送${if (filePath != null) "文件" else if (content?.isNotEmpty() == true) "文字" else ""}")
+                                    Text(text = "发送${if (filepath != null) "文件" else if (content?.isNotEmpty() == true) "文字" else ""}")
                                 }
                             }
                         }
@@ -293,6 +352,7 @@ fun App() {
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("name: ${self.name ?: ""}")
+                            Text("clientId: ${self.clientId ?: ""}")
                             Text("ip: ${self.ip ?: ""}")
                             Text("port: ${self.port ?: ""}")
                             Text("channelType: ${self.channelType ?: ""}")
@@ -314,8 +374,7 @@ fun App() {
                         ).matrix
                     }
                     Box(
-                        modifier = Modifier.fillMaxWidth().aspectRatio(1f),
-//                        contentAlignment = Alignment.Center
+                        modifier = Modifier.fillMaxWidth().aspectRatio(1f)
                     ) {
                         Canvas(
                             modifier = Modifier.fillMaxWidth().background(Color.Transparent)
@@ -329,11 +388,6 @@ fun App() {
                                             topLeft = Offset(x * cellSize, y * cellSize),
                                             size = Size(cellSize, cellSize)
                                         )
-//                                        drawCircle(
-//                                            color = if (byteMatrix.get(x, y) == 1.toByte()) Color.Black else Color.White,
-//                                            center = Offset(x * cellSize + cellSize / 2, y * cellSize + cellSize / 2),
-//                                            radius = cellSize / 2
-//                                        )
                                     }
                                 }
                             }
@@ -349,20 +403,6 @@ fun App() {
                     }
                 }
             }
-        }
-    }
-}
-
-val deviceEvent = Event()
-
-@Composable
-fun onDeviceEvent(block: () -> Unit) {
-    DisposableEffect(Unit) {
-        val removeAction = deviceEvent.registerAction {
-            block()
-        }
-        onDispose {
-            removeAction()
         }
     }
 }

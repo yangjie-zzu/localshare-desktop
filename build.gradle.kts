@@ -25,6 +25,8 @@ dependencies {
     implementation("io.ktor:ktor-server-call-logging:2.3.12")
     implementation("io.ktor:ktor-server-content-negotiation:2.3.12")
     implementation("io.ktor:ktor-serialization-jackson:2.3.12")
+    implementation("io.ktor:ktor-client-core:2.3.12")
+    implementation("io.ktor:ktor-client-cio:2.3.12")
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.17.0")
     implementation("ch.qos.logback:logback-classic:1.5.3")
     implementation("org.xerial:sqlite-jdbc:3.46.0.0")
