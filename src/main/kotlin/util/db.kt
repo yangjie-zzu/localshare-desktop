@@ -183,15 +183,12 @@ suspend inline fun <reified T> queryOne(sql: String?, args: Array<String>? = nul
 }
 
 inline fun <reified T : Any> getValue(columnInfo: ColumnInfo, data: T): Any {
-    val value = columnInfo.kProperty?.getter?.call(data)
-    if (value == null) {
-        return "null"
-    }
+    val value = columnInfo.kProperty?.getter?.call(data) ?: return "null"
     if (columnInfo.type == "TEXT") {
-        if (columnInfo.javaType == Date::class.java) {
-            return (value as Date).format()
+        return if (columnInfo.javaType == Date::class.java) {
+            "\"${(value as Date).format()}\""
         } else {
-            return "\"${value}\""
+            "\"${value}\""
         }
     }
     if (columnInfo.javaType == Boolean::class.java) {

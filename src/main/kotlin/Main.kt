@@ -50,7 +50,7 @@ import io.ktor.server.routing.*
 import kotlinx.coroutines.*
 import model.Device
 import model.DeviceMessage
-import model.DeviceMessageSend
+import model.DeviceMessageParams
 import model.SysInfo
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -177,12 +177,14 @@ fun App() {
                                     }
                                 }
                             }
-                            Column{
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
                                 Text("${item.name}")
                                 Text("${item.ip}:${item.port}", fontSize = 12.sp)
                             }
-                            Column {
-                                Text("${item.osName}")
+                            Column{
+                                Text("${item.osName}", softWrap = false)
                             }
                         }
                         Divider()
@@ -211,8 +213,8 @@ fun App() {
                                             Column(
                                                 modifier = Modifier.weight(1f)
                                             ) {
-                                                Text(text = item.filename ?: "")
                                                 SelectionContainer {
+                                                    Text(text = item.filepath ?: "")
                                                     Text(text = item.content ?: "")
                                                 }
                                             }
@@ -226,8 +228,8 @@ fun App() {
                                             Column(
                                                 modifier = Modifier.weight(1f)
                                             ) {
-                                                Text(text = item.filename ?: "")
                                                 SelectionContainer {
+                                                    Text(text = item.filepath ?: "")
                                                     Text(text = item.content ?: "")
                                                 }
                                             }
@@ -250,6 +252,11 @@ fun App() {
                                 }
                                 var showFilePicker by remember { mutableStateOf(false) }
 
+                                LaunchedEffect(activeDevice?.id) {
+                                    filepath = null
+                                    content = null
+                                    showFilePicker = false
+                                }
                                 val fileType = listOf("*")
                                 FilePicker(show = showFilePicker, fileExtensions = fileType) { platformFile ->
                                     showFilePicker = false
@@ -289,33 +296,28 @@ fun App() {
                                             val deviceMessage = DeviceMessage(
                                                 type = "send",
                                                 content = content,
-                                                filename = run {
-                                                    val ary = filepath?.split("/")
-                                                    if (ary?.isNotEmpty() == true) {
-                                                        ary[ary.size - 1]
-                                                    } else {
-                                                        null
-                                                    }
-                                                },
+                                                filepath = filepath,
                                                 isFile = filepath?.isNotEmpty() == true,
                                                 deviceId = activeDevice?.id,
                                                 createdTime = Date()
                                             )
                                             save(deviceMessage)
-                                            val deviceMessageSend = DeviceMessageSend(
-                                                deviceMessageId = deviceMessage.id,
-                                                filepath = filepath,
-                                                clientId = activeDevice?.clientId
-                                            )
-                                            save(deviceMessageSend)
                                             val response = httpClient.post("http://${activeDevice?.ip}:${activeDevice?.port}/message") {
-                                                setBody(objectMapper.writeValueAsString(deviceMessageSend))
+                                                setBody(objectMapper.writeValueAsString(DeviceMessageParams(
+                                                    sendId = deviceMessage.id,
+                                                    clientCode = clientCode,
+                                                    content = deviceMessage.content,
+                                                    filepath = deviceMessage.filepath,
+                                                    isFile = deviceMessage.isFile
+                                                )))
                                                 contentType(ContentType.Application.Json)
                                             }
                                             if (response.status == HttpStatusCode.OK) {
                                                 val body = response.bodyAsText()
-                                                TODO()
+                                                deviceMessage.sendSuccess = true
+                                                save(deviceMessage)
                                             }
+                                            requestMessages(activeDevice?.id)
                                         }
                                     }
                                 ) {
@@ -352,7 +354,7 @@ fun App() {
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("name: ${self.name ?: ""}")
-                            Text("clientId: ${self.clientId ?: ""}")
+                            Text("clientCode: ${self.clientCode ?: ""}")
                             Text("ip: ${self.ip ?: ""}")
                             Text("port: ${self.port ?: ""}")
                             Text("channelType: ${self.channelType ?: ""}")
@@ -413,11 +415,11 @@ val LocalWindow = compositionLocalOf<WindowState?> { null }
 
 var serverPort: Int? = 20000
 
-var clientId: String? = null
+var clientCode: String? = null
 
 fun getDevice(): Device {
     val device = Device()
-    device.clientId = clientId
+    device.clientCode = clientCode
     device.name = InetAddress.getLocalHost().hostName
     device.ip = InetAddress.getLocalHost().hostAddress
     device.port = serverPort
@@ -439,7 +441,7 @@ fun main() = application {
             updateTableStruct(it)
         }
         logger.info("表结构同步成功")
-        clientId = run {
+        clientCode = run {
             var sysInfo = queryOne<SysInfo>("select * from sys_info where name = 'client_id'")
             if (sysInfo == null) {
                 sysInfo = SysInfo(
@@ -460,12 +462,12 @@ fun main() = application {
             routing {
                 post("/exchange") {
                     logger.info("exchange")
-                    val (_, clientId, name, ip, port, channelType, osName, networkType, wifiName) = call.receive<Device>()
-                    var otherDevice = queryList<Device>("select * from device where client_id = '${clientId}'").firstOrNull()
+                    val (_, clientCode, name, ip, port, channelType, osName, networkType, wifiName) = call.receive<Device>()
+                    var otherDevice = queryList<Device>("select * from device where client_code = '${clientCode}'").firstOrNull()
                     if (otherDevice == null) {
                         otherDevice = Device()
                     }
-                    otherDevice.clientId = clientId
+                    otherDevice.clientCode = clientCode
                     otherDevice.name = name
                     otherDevice.ip = ip
                     otherDevice.port = port
