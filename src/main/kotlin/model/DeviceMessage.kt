@@ -11,6 +11,7 @@ data class DeviceMessage(
     var type: String? = null,
     var content: String? = null,
     var filepath: String? = null,
+    var filename: String? = null,
     var isFile: Boolean? = null,
     var oppositeId: Long? = null,
     var sendSuccess: Boolean? = null,
@@ -21,6 +22,6 @@ data class DeviceMessageParams(
     var sendId: Long?,
     var clientCode: String?,
     var content: String?,
-    var filepath: String?,
+    var filename: String?,
     var isFile: Boolean?,
 )

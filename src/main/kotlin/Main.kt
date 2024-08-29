@@ -3,6 +3,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.window.WindowDraggableArea
@@ -11,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -56,7 +58,9 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import util.*
 import java.awt.GraphicsEnvironment
+import java.io.File
 import java.net.InetAddress
+import java.nio.file.Files
 import java.util.*
 
 val logger: Logger = LoggerFactory.getLogger("share")
@@ -83,6 +87,7 @@ val objectMapper = run {
 @Preview
 fun App() {
 
+    val currentCoroutineScope = rememberCoroutineScope()
     MaterialTheme {
         Column {
             Row {
@@ -110,12 +115,18 @@ fun App() {
                 val deviceMessages = remember {
                     mutableStateListOf<DeviceMessage>()
                 }
-                suspend fun requestMessages(deviceId: Long?) {
+                val deviceMessageListState = rememberLazyListState()
+                suspend fun requestMessages(deviceId: Long?, scrollToBottom: Boolean = true) {
                     deviceMessages.clear()
                     if (deviceId == null) {
                         return
                     }
                     deviceMessages.addAll(queryList("select * from device_message where device_id = $deviceId"))
+                    if (scrollToBottom) {
+                        currentCoroutineScope.launch {
+                            deviceMessageListState.animateScrollToItem(deviceMessages.size)
+                        }
+                    }
                 }
                 LaunchedEffect(Unit) {
                     requestMessages(activeDevice?.id)
@@ -124,7 +135,7 @@ fun App() {
                     modifier = Modifier.width(200.dp)
                 ) {
                     logger.info("devices: ${devices.size}")
-                    itemsIndexed(devices, { _, it -> it.id ?: ""}) { _, item ->
+                    itemsIndexed(devices, { _, it -> it.id ?: "" }) { _, item ->
                         var offsetX by remember {
                             mutableStateOf(0f)
                         }
@@ -140,12 +151,12 @@ fun App() {
                                 CoroutineScope(Dispatchers.Default).launch {
                                     requestMessages(item.id)
                                 }
-                            }.fillMaxWidth().background(color = if (activeDevice?.id == item.id) Color.LightGray else Color.Transparent)
+                            }.fillMaxWidth()
+                                .background(color = if (activeDevice?.id == item.id) Color.LightGray else Color.Transparent)
                                 .onClick(matcher = PointerMatcher.mouse(PointerButton.Secondary)) {
                                     show = true
                                 }.onPointerEvent(eventType = PointerEventType.Press) {
                                     val position = it.changes.first().position
-                                    logger.info("位置: ${position.x}, ${position.y}")
                                     offsetX = position.x
                                     offsetY = position.y
                                 }.padding(5.dp),
@@ -154,7 +165,7 @@ fun App() {
                         ) {
                             if (show) {
                                 Popup(
-                                    onDismissRequest = {show = false},
+                                    onDismissRequest = { show = false },
                                     offset = IntOffset(offsetX.toInt(), offsetY.toInt())
                                 ) {
                                     Column(
@@ -183,7 +194,7 @@ fun App() {
                                 Text("${item.name}")
                                 Text("${item.ip}:${item.port}", fontSize = 12.sp)
                             }
-                            Column{
+                            Column {
                                 Text("${item.osName}", softWrap = false)
                             }
                         }
@@ -192,16 +203,28 @@ fun App() {
                 }
                 Box(modifier = Modifier.fillMaxHeight().background(color = Color.LightGray).width(1.dp))
                 Box(
-                    modifier = Modifier.weight(1f).sizeIn(minWidth = 500.dp).padding(start = 10.dp)
+                    modifier = Modifier.weight(1f).sizeIn(minWidth = 500.dp).padding(start = 10.dp, end = 10.dp)
                 ) {
                     if (activeDevice != null) {
-                        Column(
-                        ) {
-                            LazyColumn(modifier = Modifier.weight(1f)) {
+                        Column {
+                            LazyColumn(
+                                state = deviceMessageListState,
+                                modifier = Modifier.weight(1f).padding(bottom = 10.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
                                 itemsIndexed(
                                     items = deviceMessages,
-                                    key = {_, item -> item.id.toString()}
-                                ) {_, item ->
+                                    key = { _, item -> item.id.toString() }
+                                ) { _, item ->
+                                    var offsetX by remember {
+                                        mutableStateOf(0f)
+                                    }
+                                    var offsetY by remember {
+                                        mutableStateOf(0f)
+                                    }
+                                    var show by remember {
+                                        mutableStateOf(false)
+                                    }
                                     if (item.type == "receive") {
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
@@ -214,7 +237,7 @@ fun App() {
                                                 modifier = Modifier.weight(1f)
                                             ) {
                                                 SelectionContainer {
-                                                    Text(text = item.filepath ?: "")
+                                                    Text(text = item.filename ?: "")
                                                     Text(text = item.content ?: "")
                                                 }
                                             }
@@ -223,18 +246,59 @@ fun App() {
                                     if (item.type == "send") {
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                            horizontalArrangement = Arrangement.End
                                         ) {
-                                            Column(
-                                                modifier = Modifier.weight(1f)
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(0.7f).clip(RoundedCornerShape(5.dp))
+                                                    .background(Color.Blue)
+                                                    .onClick(matcher = PointerMatcher.mouse(PointerButton.Secondary)) {
+                                                        show = true
+                                                    }.onPointerEvent(eventType = PointerEventType.Press) {
+                                                        val position = it.changes.first().position
+                                                        offsetX = position.x
+                                                        offsetY = position.y
+                                                    }.padding(5.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp),
                                             ) {
                                                 SelectionContainer {
-                                                    Text(text = item.filepath ?: "")
-                                                    Text(text = item.content ?: "")
+                                                    Column(
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        if (item.filename != null) Text(
+                                                            text = item.filename ?: "",
+                                                            color = Color.White
+                                                        )
+                                                        if (item.content != null) Text(
+                                                            text = item.content ?: "",
+                                                            color = Color.White
+                                                        )
+                                                    }
                                                 }
-                                            }
-                                            Box {
-                                                Text(text = "发")
+                                                if (show) {
+                                                    Popup(
+                                                        onDismissRequest = { show = false },
+                                                        offset = IntOffset(offsetX.toInt(), offsetY.toInt())
+                                                    ) {
+                                                        Column(
+                                                            modifier = Modifier.background(color = Color.White)
+                                                                .border(
+                                                                    border = BorderStroke(width = 1.dp, color = Color(0, 0, 0, 20)),
+                                                                    shape = RoundedCornerShape(5.dp)
+                                                                ).padding(5.dp)
+                                                        ) {
+                                                            Row(
+                                                                modifier = Modifier.clickable {
+                                                                    CoroutineScope(Dispatchers.IO).launch {
+                                                                        delete<DeviceMessage>(item.id)
+                                                                        requestMessages(activeDevice?.id, false)
+                                                                    }
+                                                                }
+                                                            ) {
+                                                                Text("删除")
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -244,8 +308,8 @@ fun App() {
                                 modifier = Modifier.padding(bottom = 5.dp),
                                 verticalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
-                                var filepath by remember {
-                                    mutableStateOf<String?>(null)
+                                var file by remember {
+                                    mutableStateOf<File?>(null)
                                 }
                                 var content by remember {
                                     mutableStateOf<String?>(null)
@@ -253,14 +317,14 @@ fun App() {
                                 var showFilePicker by remember { mutableStateOf(false) }
 
                                 LaunchedEffect(activeDevice?.id) {
-                                    filepath = null
+                                    file = null
                                     content = null
                                     showFilePicker = false
                                 }
                                 val fileType = listOf("*")
                                 FilePicker(show = showFilePicker, fileExtensions = fileType) { platformFile ->
                                     showFilePicker = false
-                                    filepath = platformFile?.path
+                                    file = platformFile?.path?.let { File(it) }
                                 }
                                 Row(
                                     modifier = Modifier.fillMaxWidth()
@@ -273,13 +337,13 @@ fun App() {
                                                 showFilePicker = true
                                             }
                                         ) {
-                                            Text(text = filepath ?: "选择文件")
+                                            Text(text = file?.name ?: "选择文件")
                                         }
                                     }
-                                    if (filepath != null) {
+                                    if (file != null) {
                                         Box(
                                             modifier = Modifier.size(48.dp).padding(5.dp).clickable {
-                                                filepath = null
+                                                file = null
                                             }
                                         ) {
                                             Image(
@@ -289,39 +353,52 @@ fun App() {
                                         }
                                     }
                                 }
-                                TextField(value = content ?: "", onValueChange = {content = it}, placeholder = { Text(text = "输入要发送的文字") })
-                                Button(
-                                    onClick = {
-                                        CoroutineScope(Dispatchers.IO).launch {
-                                            val deviceMessage = DeviceMessage(
-                                                type = "send",
-                                                content = content,
-                                                filepath = filepath,
-                                                isFile = filepath?.isNotEmpty() == true,
-                                                deviceId = activeDevice?.id,
-                                                createdTime = Date()
-                                            )
-                                            save(deviceMessage)
-                                            val response = httpClient.post("http://${activeDevice?.ip}:${activeDevice?.port}/message") {
-                                                setBody(objectMapper.writeValueAsString(DeviceMessageParams(
-                                                    sendId = deviceMessage.id,
-                                                    clientCode = clientCode,
-                                                    content = deviceMessage.content,
-                                                    filepath = deviceMessage.filepath,
-                                                    isFile = deviceMessage.isFile
-                                                )))
+                                fun sendMsg() {
+                                    CoroutineScope(Dispatchers.IO).launch {
+                                        val deviceMessage = DeviceMessage(
+                                            type = "send",
+                                            content = content,
+                                            filepath = file?.absolutePath,
+                                            filename = file?.name,
+                                            isFile = file != null,
+                                            deviceId = activeDevice?.id,
+                                            createdTime = Date()
+                                        )
+                                        save(deviceMessage)
+                                        val response =
+                                            httpClient.post("http://${activeDevice?.ip}:${activeDevice?.port}/message") {
+                                                setBody(
+                                                    objectMapper.writeValueAsString(
+                                                        DeviceMessageParams(
+                                                            sendId = deviceMessage.id,
+                                                            clientCode = clientCode,
+                                                            content = deviceMessage.content,
+                                                            filename = deviceMessage.filename,
+                                                            isFile = deviceMessage.isFile
+                                                        )
+                                                    )
+                                                )
                                                 contentType(ContentType.Application.Json)
                                             }
-                                            if (response.status == HttpStatusCode.OK) {
-                                                val body = response.bodyAsText()
-                                                deviceMessage.sendSuccess = true
-                                                save(deviceMessage)
-                                            }
-                                            requestMessages(activeDevice?.id)
+                                        if (response.status == HttpStatusCode.OK) {
+                                            val body = response.bodyAsText()
+                                            deviceMessage.sendSuccess = true
+                                            save(deviceMessage)
                                         }
+                                        requestMessages(activeDevice?.id)
+                                    }
+                                }
+                                TextField(
+                                    value = content ?: "",
+                                    onValueChange = { content = it }, placeholder = { Text(text = "输入要发送的文字") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                Button(
+                                    onClick = {
+                                        sendMsg()
                                     }
                                 ) {
-                                    Text(text = "发送${if (filepath != null) "文件" else if (content?.isNotEmpty() == true) "文字" else ""}")
+                                    Text(text = "发送${if (file != null) "文件" else if (content?.isNotEmpty() == true) "文字" else ""}")
                                 }
                             }
                         }
@@ -386,7 +463,11 @@ fun App() {
                                 for (x in 0 until byteMatrix.width) {
                                     for (y in 0 until byteMatrix.height) {
                                         drawRect(
-                                            color = if (byteMatrix.get(x, y) == 1.toByte()) Color.Black else Color.White,
+                                            color = if (byteMatrix.get(
+                                                    x,
+                                                    y
+                                                ) == 1.toByte()
+                                            ) Color.Black else Color.White,
                                             topLeft = Offset(x * cellSize, y * cellSize),
                                             size = Size(cellSize, cellSize)
                                         )
@@ -399,7 +480,7 @@ fun App() {
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End
                     ) {
-                        Button(onClick = {querySelf()}) {
+                        Button(onClick = { querySelf() }) {
                             Text("刷新")
                         }
                     }
@@ -463,7 +544,8 @@ fun main() = application {
                 post("/exchange") {
                     logger.info("exchange")
                     val (_, clientCode, name, ip, port, channelType, osName, networkType, wifiName) = call.receive<Device>()
-                    var otherDevice = queryList<Device>("select * from device where client_code = '${clientCode}'").firstOrNull()
+                    var otherDevice =
+                        queryList<Device>("select * from device where client_code = '${clientCode}'").firstOrNull()
                     if (otherDevice == null) {
                         otherDevice = Device()
                     }
@@ -504,7 +586,7 @@ fun main() = application {
         ) {
             CompositionLocalProvider(LocalWindow provides windowState) {
                 Column {
-                    WindowDraggableArea{
+                    WindowDraggableArea {
                         Row(
                             modifier = Modifier.height(25.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -606,7 +688,10 @@ fun main() = application {
                                                 windowSize = windowState.size
                                                 logger.info("density: ${localDensity.density}, x: ${GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.x}, y: ${GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.y}, w: ${GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.width}, h: ${GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.height}")
                                                 windowState.position = WindowPosition(x = 0.dp, y = 0.dp)
-                                                windowState.size = DpSize((GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.width).dp, (GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.height).dp)
+                                                windowState.size = DpSize(
+                                                    (GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.width).dp,
+                                                    (GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.height).dp
+                                                )
                                             }
                                                 .background(color = if (hover) Color.Gray else Color.Transparent)
                                                 .fillMaxHeight().padding(5.dp).width(40.dp)
