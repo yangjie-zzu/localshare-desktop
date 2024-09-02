@@ -1,8 +1,11 @@
 package util
 
+import java.text.DecimalFormat
 import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.regex.Pattern
+import java.util.*
+import kotlin.math.log10
+import kotlin.math.pow
+
 
 fun String.toUnderCase(): String {
     val len = this.length
@@ -34,4 +37,12 @@ fun String.toFirstLower(): String {
 fun String.toDate(pattern: String = "yyyy-MM-dd HH:mm:ss"): Date {
     val simpleDateFormat = SimpleDateFormat(pattern)
     return simpleDateFormat.parse(this)
+}
+
+fun readableFileSize(size: Long?): String? {
+    if (size == null) return null
+    if (size <= 0) return "0"
+    val units = arrayOf("B", "kB", "MB", "GB", "TB", "PB", "EB")
+    val digitGroups = (log10(size.toDouble()) / log10(1024.0)).toInt()
+    return DecimalFormat("#,##0.#").format(size / 1024.0.pow(digitGroups.toDouble())) + " " + units[digitGroups]
 }

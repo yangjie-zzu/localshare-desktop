@@ -21,6 +21,10 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -250,7 +254,7 @@ fun App() {
                                         ) {
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(0.7f).clip(RoundedCornerShape(5.dp))
-                                                    .background(Color.Blue)
+                                                    .background(Color(141, 242, 242))
                                                     .onClick(matcher = PointerMatcher.mouse(PointerButton.Secondary)) {
                                                         show = true
                                                     }.onPointerEvent(eventType = PointerEventType.Press) {
@@ -265,12 +269,17 @@ fun App() {
                                                         modifier = Modifier.weight(1f)
                                                     ) {
                                                         if (item.filename != null) Text(
-                                                            text = item.filename ?: "",
-                                                            color = Color.White
+                                                            text = buildAnnotatedString {
+                                                                append(item.filename ?: "")
+                                                                if (item.size != null) {
+                                                                    withStyle(SpanStyle(fontWeight = FontWeight.Light)) {
+                                                                        append(" " + readableFileSize(item.size))
+                                                                    }
+                                                                }
+                                                            }
                                                         )
                                                         if (item.content != null) Text(
-                                                            text = item.content ?: "",
-                                                            color = Color.White
+                                                            text = item.content ?: ""
                                                         )
                                                     }
                                                 }
@@ -337,7 +346,14 @@ fun App() {
                                                 showFilePicker = true
                                             }
                                         ) {
-                                            Text(text = file?.name ?: "选择文件")
+                                            Text(text = buildAnnotatedString {
+                                                append(file?.let { it.name ?: "" } ?: "选择文件")
+                                                if (file != null) {
+                                                    withStyle(SpanStyle(fontWeight = FontWeight.Light)) {
+                                                        append(" " + (readableFileSize(file?.length()) ?: ""))
+                                                    }
+                                                }
+                                            })
                                         }
                                     }
                                     if (file != null) {
@@ -355,37 +371,40 @@ fun App() {
                                 }
                                 fun sendMsg() {
                                     CoroutineScope(Dispatchers.IO).launch {
-                                        val deviceMessage = DeviceMessage(
-                                            type = "send",
-                                            content = content,
-                                            filepath = file?.absolutePath,
-                                            filename = file?.name,
-                                            isFile = file != null,
-                                            deviceId = activeDevice?.id,
-                                            createdTime = Date()
-                                        )
-                                        save(deviceMessage)
-                                        val response =
-                                            httpClient.post("http://${activeDevice?.ip}:${activeDevice?.port}/message") {
-                                                setBody(
-                                                    objectMapper.writeValueAsString(
-                                                        DeviceMessageParams(
-                                                            sendId = deviceMessage.id,
-                                                            clientCode = clientCode,
-                                                            content = deviceMessage.content,
-                                                            filename = deviceMessage.filename,
-                                                            isFile = deviceMessage.isFile
-                                                        )
-                                                    )
-                                                )
-                                                contentType(ContentType.Application.Json)
-                                            }
-                                        if (response.status == HttpStatusCode.OK) {
-                                            val body = response.bodyAsText()
-                                            deviceMessage.sendSuccess = true
+                                        transaction {
+                                            val deviceMessage = DeviceMessage(
+                                                type = "send",
+                                                content = content,
+                                                filepath = file?.absolutePath,
+                                                filename = file?.name,
+                                                size = file?.length(),
+                                                deviceId = activeDevice?.id,
+                                                createdTime = Date()
+                                            )
                                             save(deviceMessage)
+                                            val response =
+                                                httpClient.post("http://${activeDevice?.ip}:${activeDevice?.port}/message") {
+                                                    val deviceMessageParams = objectMapper.writeValueAsString(DeviceMessageParams(
+                                                        sendId = deviceMessage.id,
+                                                        clientCode = clientCode,
+                                                        content = deviceMessage.content,
+                                                        filename = deviceMessage.filename,
+                                                        size = deviceMessage.size
+                                                    ))
+                                                    logger.info("deviceMessageParams: {}", deviceMessageParams)
+                                                    setBody(
+                                                        deviceMessageParams
+                                                    )
+                                                    contentType(ContentType.Application.Json)
+                                                }
+                                            if (response.status == HttpStatusCode.OK) {
+                                                logger.info("发送成功")
+                                                val body = response.bodyAsText()
+                                                deviceMessage.sendSuccess = true
+                                                save(deviceMessage)
+                                            }
+                                            requestMessages(activeDevice?.id)
                                         }
-                                        requestMessages(activeDevice?.id)
                                     }
                                 }
                                 TextField(
@@ -534,48 +553,7 @@ fun main() = application {
             sysInfo.value
         }
     }
-    embeddedServer(Netty, applicationEngineEnvironment {
-        log = LoggerFactory.getLogger("ktor.server")
-        connector {
-            port = 20000
-        }
-        module {
-            routing {
-                post("/exchange") {
-                    logger.info("exchange")
-                    val (_, clientCode, name, ip, port, channelType, osName, networkType, wifiName) = call.receive<Device>()
-                    var otherDevice =
-                        queryList<Device>("select * from device where client_code = '${clientCode}'").firstOrNull()
-                    if (otherDevice == null) {
-                        otherDevice = Device()
-                    }
-                    otherDevice.clientCode = clientCode
-                    otherDevice.name = name
-                    otherDevice.ip = ip
-                    otherDevice.port = port
-                    otherDevice.channelType = channelType
-                    otherDevice.osName = osName
-                    otherDevice.networkType = networkType
-                    otherDevice.wifiName = wifiName
-                    save(otherDevice)
-                    async {
-                        deviceEvent.doAction()
-                    }
-                    call.respond(getDevice())
-                }
-            }
-            install(ContentNegotiation) {
-                jackson {
-                    configure(SerializationFeature.INDENT_OUTPUT, true)
-                    setDefaultPrettyPrinter(DefaultPrettyPrinter().apply {
-                        indentArraysWith(DefaultPrettyPrinter.FixedSpaceIndenter.instance)
-                        indentObjectsWith(DefaultIndenter("  ", "\n"))
-                    })
-                    registerModule(JavaTimeModule())  // support java.time.* types
-                }
-            }
-        }
-    }).start()
+    startServer()
     CompositionLocalProvider(LocalApplication provides app) {
         val windowState = rememberWindowState(position = WindowPosition(alignment = Alignment.Center))
         Window(
