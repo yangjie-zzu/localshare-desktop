@@ -1,32 +1,32 @@
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import model.DeviceMessage
 
-class Event {
-    private val actions = mutableListOf<() -> Unit>()
-    fun doAction() {
+class Event<T: Any?> {
+    private val actions = mutableListOf<(data: T) -> Unit>()
+    fun doAction(data: T) {
         actions.forEach {
-            it()
+            it(data)
         }
     }
-    fun registerAction(onAction: () -> Unit): () -> Unit {
+    fun registerAction(onAction: (data: T) -> Unit): () -> Unit {
         actions.add(onAction)
         return {
             actions.remove(onAction)
         }
     }
 }
-val deviceEvent = Event()
 
-val deviceMessageEvent = Event()
+val deviceEvent = Event<Unit>()
+
+val deviceMessageEvent = Event<DeviceMessage>()
 
 @Composable
-fun onEvent(event: Event, block: () -> Unit) {
+fun <T : Any?> OnEvent(event: Event<T>, block: (data: T) -> Unit) {
     DisposableEffect(event) {
-        val removeAction = event.registerAction {
-            block()
-        }
+        val removeAction = event.registerAction(block)
         onDispose {
-            removeAction()
+            removeAction.invoke()
         }
     }
 }
