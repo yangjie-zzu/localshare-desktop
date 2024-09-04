@@ -31,11 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.*
 import com.darkrockstudios.libraries.mpfilepicker.FilePicker
-import com.fasterxml.jackson.core.util.DefaultIndenter
-import com.fasterxml.jackson.core.util.DefaultPrettyPrinter
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.SerializationFeature
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
+import com.google.gson.Gson
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import com.google.zxing.qrcode.encoder.Encoder
@@ -45,14 +41,6 @@ import io.ktor.client.plugins.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
-import io.ktor.serialization.jackson.*
-import io.ktor.server.application.*
-import io.ktor.server.engine.*
-import io.ktor.server.netty.*
-import io.ktor.server.plugins.contentnegotiation.*
-import io.ktor.server.request.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
 import kotlinx.coroutines.*
 import model.Device
 import model.DeviceMessage
@@ -64,7 +52,6 @@ import util.*
 import java.awt.GraphicsEnvironment
 import java.io.File
 import java.net.InetAddress
-import java.nio.file.Files
 import java.util.*
 
 val logger: Logger = LoggerFactory.getLogger("share")
@@ -73,17 +60,6 @@ val httpClient = HttpClient {
     install(HttpTimeout) {
         requestTimeoutMillis = 60000
     }
-}
-
-val objectMapper = run {
-    val mapper = ObjectMapper()
-    mapper.configure(SerializationFeature.INDENT_OUTPUT, true)
-    mapper.setDefaultPrettyPrinter(DefaultPrettyPrinter().apply {
-        indentArraysWith(DefaultPrettyPrinter.FixedSpaceIndenter.instance)
-        indentObjectsWith(DefaultIndenter("  ", "\n"))
-    })
-    mapper.registerModule(JavaTimeModule())  // support java.time.* types
-    mapper
 }
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
@@ -107,7 +83,7 @@ fun App() {
                 LaunchedEffect(Unit) {
                     requestDevices()
                 }
-                onEvent(deviceEvent) {
+                OnEvent(deviceEvent) {
                     logger.info("触发设备事件")
                     CoroutineScope(Dispatchers.IO).launch {
                         requestDevices()
@@ -135,6 +111,15 @@ fun App() {
                 LaunchedEffect(Unit) {
                     requestMessages(activeDevice?.id)
                 }
+
+                OnEvent(deviceMessageEvent) {
+                    if (it.deviceId == activeDevice?.id) {
+                        currentCoroutineScope.launch {
+                            requestMessages(activeDevice?.id)
+                        }
+                    }
+                }
+
                 LazyColumn(
                     modifier = Modifier.width(200.dp)
                 ) {
@@ -173,11 +158,11 @@ fun App() {
                                     offset = IntOffset(offsetX.toInt(), offsetY.toInt())
                                 ) {
                                     Column(
-                                        modifier = Modifier.background(color = Color.White)
+                                        modifier = Modifier.clip(RoundedCornerShape(5.dp)).background(color = Color.White)
                                             .border(
                                                 border = BorderStroke(width = 1.dp, color = Color(0, 0, 0, 20)),
                                                 shape = RoundedCornerShape(5.dp)
-                                            ).padding(5.dp)
+                                            )
                                     ) {
                                         Row(
                                             modifier = Modifier.clickable {
@@ -185,7 +170,7 @@ fun App() {
                                                     delete<Device>(item.id)
                                                     requestDevices()
                                                 }
-                                            }
+                                            }.padding(5.dp)
                                         ) {
                                             Text("删除")
                                         }
@@ -264,23 +249,29 @@ fun App() {
                                                     }.padding(5.dp),
                                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                                             ) {
-                                                SelectionContainer {
-                                                    Column(
-                                                        modifier = Modifier.weight(1f)
-                                                    ) {
-                                                        if (item.filename != null) Text(
-                                                            text = buildAnnotatedString {
-                                                                append(item.filename ?: "")
-                                                                if (item.size != null) {
-                                                                    withStyle(SpanStyle(fontWeight = FontWeight.Light)) {
-                                                                        append(" " + readableFileSize(item.size))
+                                                Column(
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    if (item.filename != null) {
+                                                        SelectionContainer {
+                                                            Text(
+                                                                text = buildAnnotatedString {
+                                                                    append(item.filename ?: "")
+                                                                    if (item.size != null) {
+                                                                        withStyle(SpanStyle(fontWeight = FontWeight.Light)) {
+                                                                            append(" " + readableFileSize(item.size))
+                                                                        }
                                                                     }
                                                                 }
-                                                            }
-                                                        )
-                                                        if (item.content != null) Text(
-                                                            text = item.content ?: ""
-                                                        )
+                                                            )
+                                                        }
+                                                    }
+                                                    if (item.content != null) {
+                                                        SelectionContainer {
+                                                            Text(
+                                                                text = item.content ?: ""
+                                                            )
+                                                        }
                                                     }
                                                 }
                                                 if (show) {
@@ -289,11 +280,11 @@ fun App() {
                                                         offset = IntOffset(offsetX.toInt(), offsetY.toInt())
                                                     ) {
                                                         Column(
-                                                            modifier = Modifier.background(color = Color.White)
+                                                            modifier = Modifier.clip(RoundedCornerShape(5.dp)).background(color = Color.White)
                                                                 .border(
                                                                     border = BorderStroke(width = 1.dp, color = Color(0, 0, 0, 20)),
                                                                     shape = RoundedCornerShape(5.dp)
-                                                                ).padding(5.dp)
+                                                                )
                                                         ) {
                                                             Row(
                                                                 modifier = Modifier.clickable {
@@ -301,7 +292,7 @@ fun App() {
                                                                         delete<DeviceMessage>(item.id)
                                                                         requestMessages(activeDevice?.id, false)
                                                                     }
-                                                                }
+                                                                }.padding(5.dp)
                                                             ) {
                                                                 Text("删除")
                                                             }
@@ -384,7 +375,7 @@ fun App() {
                                             save(deviceMessage)
                                             val response =
                                                 httpClient.post("http://${activeDevice?.ip}:${activeDevice?.port}/message") {
-                                                    val deviceMessageParams = objectMapper.writeValueAsString(DeviceMessageParams(
+                                                    val deviceMessageParams = Gson().toJson(DeviceMessageParams(
                                                         sendId = deviceMessage.id,
                                                         clientCode = clientCode,
                                                         content = deviceMessage.content,

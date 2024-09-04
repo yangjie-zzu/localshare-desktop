@@ -46,3 +46,11 @@ fun readableFileSize(size: Long?): String? {
     val digitGroups = (log10(size.toDouble()) / log10(1024.0)).toInt()
     return DecimalFormat("#,##0.#").format(size / 1024.0.pow(digitGroups.toDouble())) + " " + units[digitGroups]
 }
+
+fun getFileNameAndType(filename: String?): Array<String?>? {
+    if (filename == null) {
+        return null
+    }
+    val index = filename.lastIndexOf('.')
+    return arrayOf(if (index > -1) filename.substring(0, index) else filename, if (index > -1) filename.substring(index + 1) else null)
+}
