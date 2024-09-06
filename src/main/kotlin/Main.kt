@@ -49,9 +49,11 @@ import model.SysInfo
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import util.*
+import java.awt.Desktop
 import java.awt.GraphicsEnvironment
 import java.io.File
 import java.net.InetAddress
+import java.nio.charset.Charset
 import java.util.*
 
 val logger: Logger = LoggerFactory.getLogger("share")
@@ -214,32 +216,51 @@ fun App() {
                                     var show by remember {
                                         mutableStateOf(false)
                                     }
-                                    if (item.type == "receive") {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                        ) {
-                                            Box {
-                                                Text(text = "收")
-                                            }
-                                            Column(
-                                                modifier = Modifier.weight(1f)
+                                    @Composable
+                                    fun showMenu() {
+                                        if (show) {
+                                            Popup(
+                                                onDismissRequest = { show = false },
+                                                offset = IntOffset(offsetX.toInt(), offsetY.toInt())
                                             ) {
-                                                SelectionContainer {
-                                                    Text(text = item.filename ?: "")
-                                                    Text(text = item.content ?: "")
+                                                Column(
+                                                    modifier = Modifier.clip(RoundedCornerShape(5.dp)).background(color = Color.White)
+                                                        .border(
+                                                            border = BorderStroke(width = 1.dp, color = Color(0, 0, 0, 20)),
+                                                            shape = RoundedCornerShape(5.dp)
+                                                        )
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.clickable {
+                                                            CoroutineScope(Dispatchers.IO).launch {
+                                                                delete<DeviceMessage>(item.id)
+                                                                requestMessages(activeDevice?.id, false)
+                                                            }
+                                                        }.padding(5.dp)
+                                                    ) {
+                                                        Text("删除")
+                                                    }
                                                 }
                                             }
                                         }
                                     }
-                                    if (item.type == "send") {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.End
-                                        ) {
+                                    fun openFile() {
+                                        (if (item.type == "receive") item.savePath else item.filepath)?.let {
+                                            logger.info("path: ${it}")
+                                            Runtime.getRuntime().exec("explorer /e,/select,${it}")
+                                        }
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = if (item.type == "send") Arrangement.End else Arrangement.Start
+                                    ) {
+                                        if (item.type == "receive") {
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(0.7f).clip(RoundedCornerShape(5.dp))
-                                                    .background(Color(141, 242, 242))
+                                                    .background(Color.Green)
+                                                    .onClick {
+                                                        openFile()
+                                                    }
                                                     .onClick(matcher = PointerMatcher.mouse(PointerButton.Secondary)) {
                                                         show = true
                                                     }.onPointerEvent(eventType = PointerEventType.Press) {
@@ -249,11 +270,11 @@ fun App() {
                                                     }.padding(5.dp),
                                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                                             ) {
-                                                Column(
-                                                    modifier = Modifier.weight(1f)
-                                                ) {
-                                                    if (item.filename != null) {
-                                                        SelectionContainer {
+                                                SelectionContainer {
+                                                    Column(
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        if (item.filename != null) {
                                                             Text(
                                                                 text = buildAnnotatedString {
                                                                     append(item.filename ?: "")
@@ -265,40 +286,56 @@ fun App() {
                                                                 }
                                                             )
                                                         }
-                                                    }
-                                                    if (item.content != null) {
-                                                        SelectionContainer {
+                                                        if (item.content != null) {
                                                             Text(
                                                                 text = item.content ?: ""
                                                             )
                                                         }
                                                     }
                                                 }
-                                                if (show) {
-                                                    Popup(
-                                                        onDismissRequest = { show = false },
-                                                        offset = IntOffset(offsetX.toInt(), offsetY.toInt())
+                                                showMenu()
+                                            }
+                                        }
+                                        if (item.type == "send") {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(0.7f).clip(RoundedCornerShape(5.dp))
+                                                    .background(Color(141, 242, 242))
+                                                    .onClick {
+                                                        openFile()
+                                                    }
+                                                    .onClick(matcher = PointerMatcher.mouse(PointerButton.Secondary)) {
+                                                        show = true
+                                                    }.onPointerEvent(eventType = PointerEventType.Press) {
+                                                        val position = it.changes.first().position
+                                                        offsetX = position.x
+                                                        offsetY = position.y
+                                                    }.padding(5.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            ) {
+                                                SelectionContainer {
+                                                    Column(
+                                                        modifier = Modifier.weight(1f)
                                                     ) {
-                                                        Column(
-                                                            modifier = Modifier.clip(RoundedCornerShape(5.dp)).background(color = Color.White)
-                                                                .border(
-                                                                    border = BorderStroke(width = 1.dp, color = Color(0, 0, 0, 20)),
-                                                                    shape = RoundedCornerShape(5.dp)
-                                                                )
-                                                        ) {
-                                                            Row(
-                                                                modifier = Modifier.clickable {
-                                                                    CoroutineScope(Dispatchers.IO).launch {
-                                                                        delete<DeviceMessage>(item.id)
-                                                                        requestMessages(activeDevice?.id, false)
+                                                        if (item.filename != null) {
+                                                            Text(
+                                                                text = buildAnnotatedString {
+                                                                    append(item.filename ?: "")
+                                                                    if (item.size != null) {
+                                                                        withStyle(SpanStyle(fontWeight = FontWeight.Light)) {
+                                                                            append(" " + readableFileSize(item.size))
+                                                                        }
                                                                     }
-                                                                }.padding(5.dp)
-                                                            ) {
-                                                                Text("删除")
-                                                            }
+                                                                }
+                                                            )
+                                                        }
+                                                        if (item.content != null) {
+                                                            Text(
+                                                                text = item.content ?: ""
+                                                            )
                                                         }
                                                     }
                                                 }
+                                                showMenu()
                                             }
                                         }
                                     }
