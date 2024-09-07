@@ -373,7 +373,7 @@ fun App() {
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Box(
-                                        modifier = Modifier.weight(1f)
+                                        modifier = Modifier.weight(1f, fill = false)
                                     ) {
                                         Button(
                                             onClick = {
