@@ -30,6 +30,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.DpSize
@@ -108,17 +109,19 @@ fun App() {
                 }
                 val deviceMessageListState = rememberLazyListState()
                 suspend fun requestMessages(deviceId: Long?, scrollToBottom: Boolean = true) {
+                    val oldSize = deviceMessages.size
                     deviceMessages.clear()
                     if (deviceId == null) {
                         return
                     }
                     deviceMessages.addAll(queryList("select * from device_message where device_id = $deviceId"))
                     if (scrollToBottom) {
-                        currentCoroutineScope.launch {
-                            val size = deviceMessages.size + 1
-                            logger.info("animateScrollToItem ${size}")
-                            delay(200)
-                            deviceMessageListState.animateScrollToItem(size)
+                        val size = deviceMessages.size
+                        if (size > oldSize) {
+                            currentCoroutineScope.launch {
+                                delay(200)
+                                deviceMessageListState.animateScrollToItem(size)
+                            }
                         }
                     }
                 }
@@ -268,21 +271,34 @@ fun App() {
                                                         ) {
                                                             val fileProgress = fileProgressMap[item.id]
                                                             Text(item.createdTime?.format("yyyy-MM-dd HH:mm:ss E") ?: "", fontSize = 13.sp, fontWeight = FontWeight.Light)
-                                                            Text(
-                                                                text = buildAnnotatedString {
-                                                                    if (item.filename != null) {
-                                                                        append(item.filename ?: "")
+                                                            Text(text = item.filename ?: "")
+                                                            Row(
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                                            ) {
+                                                                Box(modifier = Modifier.size(20.dp)) {
+                                                                    if (item.filename != null && item.downloadSuccess != true && fileProgress == null) {
+                                                                        Image(painter = painterResource("下载(2).svg"), contentDescription = "",
+                                                                            modifier = Modifier.clickable {
+                                                                                currentCoroutineScope.launch {
+                                                                                    downloadMessageFile(activeDevice, item)
+                                                                                }
+                                                                            }
+                                                                        )
                                                                     }
-                                                                    withStyle(SpanStyle(fontWeight = FontWeight.Light, fontSize = 14.sp)) {
-                                                                        if (fileProgress != null) {
-                                                                            append("\n${readableFileSize(fileProgress.handleSize)}/${readableFileSize(fileProgress.totalSize)}")
-                                                                        }
-                                                                        if (fileProgress == null && item.size != null) {
-                                                                            append("\n${readableFileSize(if (item.downloadSuccess == true) item.downloadSize else 0)}/${readableFileSize(item.size)}")
-                                                                        }
+                                                                    if (item.downloadSuccess == true) {
+                                                                        Image(painter = painterResource("下载完成(3).svg"), contentDescription = "")
+                                                                    } else if (fileProgress != null) {
+                                                                        CircularProgressIndicator(
+                                                                            progress = fileProgress.handleSize.toFloat()/fileProgress.totalSize
+                                                                        )
                                                                     }
                                                                 }
-                                                            )
+                                                                Text(
+                                                                    text = "${fileProgress?.let { fileProgress ->  "${readableFileSize(fileProgress.handleSize)}/" } ?: ""}${readableFileSize(fileProgress?.totalSize ?: item.size)}",
+                                                                    fontWeight = FontWeight.Light, fontSize = 14.sp
+                                                                )
+                                                            }
                                                             if (item.content != null) {
                                                                 Text(
                                                                     text = item.content ?: ""
@@ -349,7 +365,9 @@ fun App() {
                                 val fileType = listOf("*")
                                 FilePicker(show = showFilePicker, fileExtensions = fileType) { platformFile ->
                                     showFilePicker = false
-                                    file = platformFile?.path?.let { File(it) }
+                                    platformFile?.path?.let {
+                                        file = File(it)
+                                    }
                                 }
                                 Row(
                                     modifier = Modifier.fillMaxWidth()
@@ -374,14 +392,30 @@ fun App() {
                                                 },
                                                 delayMillis = 200
                                             ) {
-                                                Text(text = buildAnnotatedString {
-                                                    append(file?.let { it.name ?: "" } ?: "选择文件")
-                                                    if (file != null) {
-                                                        withStyle(SpanStyle(fontWeight = FontWeight.Light)) {
-                                                            append(" " + (readableFileSize(file?.length()) ?: ""))
+                                                Row {
+                                                    file.let {
+                                                        if (it != null) {
+                                                            val names = getFileNameAndType(it.name)
+                                                            Text(
+                                                                text = names?.get(0) ?: "",
+                                                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                                                modifier = Modifier.weight(1f, fill = false)
+                                                            )
+                                                            Text(
+                                                                text = names?.get(1)?.let { ".${it}" } ?: "",
+                                                            )
+                                                            Text(
+                                                                text = " ${readableFileSize(it.length()) ?: ""}",
+                                                                fontWeight = FontWeight.Light, maxLines = 1
+                                                            )
+                                                        } else {
+                                                            Text(
+                                                                text = "选择文件",
+                                                                maxLines = 1, overflow = TextOverflow.Ellipsis
+                                                            )
                                                         }
                                                     }
-                                                }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                }
                                             }
                                         }
                                     }
