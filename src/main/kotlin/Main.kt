@@ -5,6 +5,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.LocalTextContextMenu
+import androidx.compose.foundation.text.TextContextMenu
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.window.WindowDraggableArea
 import androidx.compose.material.*
@@ -14,16 +16,21 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLocalization
+import androidx.compose.ui.platform.LocalTextToolbar
+import androidx.compose.ui.platform.PlatformLocalization
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntOffset
@@ -35,6 +42,7 @@ import com.google.gson.Gson
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import com.google.zxing.qrcode.encoder.Encoder
+import component.CustomContextMenu
 import component.Frame
 import io.ktor.client.*
 import io.ktor.client.plugins.*
@@ -122,6 +130,15 @@ fun App() {
                     }
                 }
 
+
+                val fileProgressMap = remember {
+                    mutableStateMapOf<Long?, FileProgress?>()
+                }
+
+                OnDownloadProgressEvent(block = {
+                    fileProgressMap[it.messageId] = it
+                })
+
                 LazyColumn(
                     modifier = Modifier.width(200.dp)
                 ) {
@@ -207,41 +224,10 @@ fun App() {
                                     items = deviceMessages,
                                     key = { _, item -> item.id.toString() }
                                 ) { _, item ->
-                                    var offsetX by remember {
-                                        mutableStateOf(0f)
-                                    }
-                                    var offsetY by remember {
-                                        mutableStateOf(0f)
-                                    }
-                                    var show by remember {
-                                        mutableStateOf(false)
-                                    }
-                                    @Composable
-                                    fun showMenu() {
-                                        if (show) {
-                                            Popup(
-                                                onDismissRequest = { show = false },
-                                                offset = IntOffset(offsetX.toInt(), offsetY.toInt())
-                                            ) {
-                                                Column(
-                                                    modifier = Modifier.clip(RoundedCornerShape(5.dp)).background(color = Color.White)
-                                                        .border(
-                                                            border = BorderStroke(width = 1.dp, color = Color(0, 0, 0, 20)),
-                                                            shape = RoundedCornerShape(5.dp)
-                                                        )
-                                                ) {
-                                                    Row(
-                                                        modifier = Modifier.clickable {
-                                                            CoroutineScope(Dispatchers.IO).launch {
-                                                                delete<DeviceMessage>(item.id)
-                                                                requestMessages(activeDevice?.id, false)
-                                                            }
-                                                        }.padding(5.dp)
-                                                    ) {
-                                                        Text("删除")
-                                                    }
-                                                }
-                                            }
+                                    fun deleteItem() {
+                                        CoroutineScope(Dispatchers.IO).launch {
+                                            delete<DeviceMessage>(item.id)
+                                            requestMessages(activeDevice?.id, false)
                                         }
                                     }
                                     fun openFile() {
@@ -254,88 +240,90 @@ fun App() {
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = if (item.type == "send") Arrangement.End else Arrangement.Start
                                     ) {
-                                        if (item.type == "receive") {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(0.7f).clip(RoundedCornerShape(5.dp))
-                                                    .background(Color.Green)
-                                                    .onClick {
+                                        CustomContextMenu(
+                                            items = {
+                                                listOf(
+                                                    ContextMenuItem("删除") {
+                                                        deleteItem()
+                                                    },
+                                                    ContextMenuItem("打开文件") {
                                                         openFile()
                                                     }
-                                                    .onClick(matcher = PointerMatcher.mouse(PointerButton.Secondary)) {
-                                                        show = true
-                                                    }.onPointerEvent(eventType = PointerEventType.Press) {
-                                                        val position = it.changes.first().position
-                                                        offsetX = position.x
-                                                        offsetY = position.y
-                                                    }.padding(5.dp),
-                                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                            ) {
-                                                SelectionContainer {
-                                                    Column(
-                                                        modifier = Modifier.weight(1f)
-                                                    ) {
-                                                        if (item.filename != null) {
-                                                            Text(
-                                                                text = buildAnnotatedString {
-                                                                    append(item.filename ?: "")
-                                                                    if (item.size != null) {
-                                                                        withStyle(SpanStyle(fontWeight = FontWeight.Light)) {
-                                                                            append(" " + readableFileSize(item.size))
-                                                                        }
-                                                                    }
-                                                                }
-                                                            )
-                                                        }
-                                                        if (item.content != null) {
-                                                            Text(
-                                                                text = item.content ?: ""
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                                showMenu()
+                                                )
                                             }
-                                        }
-                                        if (item.type == "send") {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(0.7f).clip(RoundedCornerShape(5.dp))
-                                                    .background(Color(141, 242, 242))
-                                                    .onClick {
-                                                        openFile()
-                                                    }
-                                                    .onClick(matcher = PointerMatcher.mouse(PointerButton.Secondary)) {
-                                                        show = true
-                                                    }.onPointerEvent(eventType = PointerEventType.Press) {
-                                                        val position = it.changes.first().position
-                                                        offsetX = position.x
-                                                        offsetY = position.y
-                                                    }.padding(5.dp),
-                                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                            ) {
-                                                SelectionContainer {
-                                                    Column(
-                                                        modifier = Modifier.weight(1f)
-                                                    ) {
-                                                        if (item.filename != null) {
+                                        ) {
+                                            if (item.type == "receive") {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(0.7f).clip(RoundedCornerShape(5.dp))
+                                                        .background(Color.Green).padding(5.dp),
+                                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                ) {
+                                                    SelectionContainer {
+                                                        Column(
+                                                            modifier = Modifier.weight(1f)
+                                                        ) {
+                                                            val fileProgress = fileProgressMap[item.id]
                                                             Text(
                                                                 text = buildAnnotatedString {
-                                                                    append(item.filename ?: "")
-                                                                    if (item.size != null) {
-                                                                        withStyle(SpanStyle(fontWeight = FontWeight.Light)) {
-                                                                            append(" " + readableFileSize(item.size))
+                                                                    if (item.filename != null) {
+                                                                        append(item.filename ?: "")
+                                                                    }
+                                                                    withStyle(SpanStyle(fontWeight = FontWeight.Light, fontSize = 14.sp)) {
+                                                                        if (fileProgress != null) {
+                                                                            append("\n${readableFileSize(fileProgress.handleSize)}/${readableFileSize(fileProgress.totalSize)}")
+                                                                        }
+                                                                        if (fileProgress == null && item.size != null) {
+                                                                            append("\n${readableFileSize(if (item.downloadSuccess == true) item.downloadSize else 0)}/${readableFileSize(item.size)}")
                                                                         }
                                                                     }
                                                                 }
                                                             )
-                                                        }
-                                                        if (item.content != null) {
-                                                            Text(
-                                                                text = item.content ?: ""
-                                                            )
+                                                            if (item.content != null) {
+                                                                Text(
+                                                                    text = item.content ?: ""
+                                                                )
+                                                            }
                                                         }
                                                     }
                                                 }
-                                                showMenu()
+                                            }
+                                            if (item.type == "send") {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(0.7f).clip(RoundedCornerShape(5.dp))
+                                                        .background(Color(141, 242, 242)).padding(5.dp),
+                                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                ) {
+                                                    SelectionContainer {
+                                                        val localTextToolbar = LocalTextToolbar.current
+                                                        localTextToolbar.showMenu(
+                                                            rect = Rect.Zero,
+                                                            onCopyRequested = {
+                                                                logger.info("复制")
+                                                            }
+                                                        )
+                                                        Column(
+                                                            modifier = Modifier.weight(1f)
+                                                        ) {
+                                                            if (item.filename != null) {
+                                                                Text(
+                                                                    text = buildAnnotatedString {
+                                                                        append(item.filename ?: "")
+                                                                        if (item.size != null) {
+                                                                            withStyle(SpanStyle(fontWeight = FontWeight.Light, fontSize = 14.sp)) {
+                                                                                append("\n" + readableFileSize(item.size))
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                )
+                                                            }
+                                                            if (item.content != null) {
+                                                                Text(
+                                                                    text = item.content ?: ""
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -374,14 +362,27 @@ fun App() {
                                                 showFilePicker = true
                                             }
                                         ) {
-                                            Text(text = buildAnnotatedString {
-                                                append(file?.let { it.name ?: "" } ?: "选择文件")
-                                                if (file != null) {
-                                                    withStyle(SpanStyle(fontWeight = FontWeight.Light)) {
-                                                        append(" " + (readableFileSize(file?.length()) ?: ""))
+                                            TooltipArea(
+                                                tooltip = {
+                                                    if (file?.name != null) {
+                                                        Box(
+                                                            modifier = Modifier.background(color = Color.White)
+                                                        ) {
+                                                            Text(file?.name ?: "", color = Color.Black, fontWeight = FontWeight.Light, fontSize = 12.sp)
+                                                        }
                                                     }
-                                                }
-                                            })
+                                                },
+                                                delayMillis = 200
+                                            ) {
+                                                Text(text = buildAnnotatedString {
+                                                    append(file?.let { it.name ?: "" } ?: "选择文件")
+                                                    if (file != null) {
+                                                        withStyle(SpanStyle(fontWeight = FontWeight.Light)) {
+                                                            append(" " + (readableFileSize(file?.length()) ?: ""))
+                                                        }
+                                                    }
+                                                }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            }
                                         }
                                     }
                                     if (file != null) {
@@ -590,75 +591,46 @@ fun main() = application {
             state = windowState,
             undecorated = true
         ) {
-            CompositionLocalProvider(LocalWindow provides windowState) {
-                Column {
-                    WindowDraggableArea {
-                        Row(
-                            modifier = Modifier.height(25.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+            CompositionLocalProvider(
+                LocalLocalization provides object : PlatformLocalization {
+                    override val copy: String
+                        get() = "复制"
+
+                    override val cut: String
+                        get() = "剪切"
+                    override val paste: String
+                        get() = "粘贴"
+                    override val selectAll: String
+                        get() = "全选"
+                }
+            ) {
+                CompositionLocalProvider(LocalWindow provides windowState) {
+                    Column {
+                        WindowDraggableArea {
                             Row(
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.height(25.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Box(
-                                    modifier = Modifier.clickable {
-
-                                    }.fillMaxHeight().padding(start = 5.dp, end = 5.dp),
-                                    contentAlignment = Alignment.Center
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("菜单", fontSize = 12.sp, lineHeight = 12.sp)
-                                }
-                            }
-                            Row {
-                                Frame {
-                                    var hover by remember {
-                                        mutableStateOf(false)
-                                    }
                                     Box(
-                                        modifier = Modifier.clickable { windowState.isMinimized = true }
-                                            .background(color = if (hover) Color.Gray else Color.Transparent)
-                                            .fillMaxHeight().padding(5.dp).width(40.dp)
-                                            .onPointerEvent(eventType = PointerEventType.Move) {
-                                                hover = true
-                                            }.onPointerEvent(eventType = PointerEventType.Exit) {
-                                                hover = false
-                                            },
+                                        modifier = Modifier.clickable {
+
+                                        }.fillMaxHeight().padding(start = 5.dp, end = 5.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        if (hover) {
-                                            Image(
-                                                painter = painterResource("最小化1.svg"),
-                                                contentDescription = null
-                                            )
-                                        } else {
-                                            Image(
-                                                painter = painterResource("最小化.svg"),
-                                                contentDescription = null
-                                            )
-                                        }
+                                        Text("菜单", fontSize = 12.sp, lineHeight = 12.sp)
                                     }
                                 }
-                                var isMax by remember {
-                                    mutableStateOf(false)
-                                }
-                                var windowSize by remember {
-                                    mutableStateOf(windowState.size)
-                                }
-                                var windowPosition by remember {
-                                    mutableStateOf(windowState.position)
-                                }
-                                if (isMax) {
+                                Row {
                                     Frame {
                                         var hover by remember {
                                             mutableStateOf(false)
                                         }
                                         Box(
-                                            modifier = Modifier.clickable {
-                                                isMax = false
-                                                windowState.position = windowPosition
-                                                windowState.size = windowSize
-                                            }
+                                            modifier = Modifier.clickable { windowState.isMinimized = true }
                                                 .background(color = if (hover) Color.Gray else Color.Transparent)
                                                 .fillMaxHeight().padding(5.dp).width(40.dp)
                                                 .onPointerEvent(eventType = PointerEventType.Move) {
@@ -670,37 +642,108 @@ fun main() = application {
                                         ) {
                                             if (hover) {
                                                 Image(
-                                                    painter = painterResource("还原1.svg"),
+                                                    painter = painterResource("最小化1.svg"),
                                                     contentDescription = null
                                                 )
                                             } else {
                                                 Image(
-                                                    painter = painterResource("还原.svg"),
+                                                    painter = painterResource("最小化.svg"),
                                                     contentDescription = null
                                                 )
                                             }
                                         }
                                     }
-                                } else {
+                                    var isMax by remember {
+                                        mutableStateOf(false)
+                                    }
+                                    var windowSize by remember {
+                                        mutableStateOf(windowState.size)
+                                    }
+                                    var windowPosition by remember {
+                                        mutableStateOf(windowState.position)
+                                    }
+                                    if (isMax) {
+                                        Frame {
+                                            var hover by remember {
+                                                mutableStateOf(false)
+                                            }
+                                            Box(
+                                                modifier = Modifier.clickable {
+                                                    isMax = false
+                                                    windowState.position = windowPosition
+                                                    windowState.size = windowSize
+                                                }
+                                                    .background(color = if (hover) Color.Gray else Color.Transparent)
+                                                    .fillMaxHeight().padding(5.dp).width(40.dp)
+                                                    .onPointerEvent(eventType = PointerEventType.Move) {
+                                                        hover = true
+                                                    }.onPointerEvent(eventType = PointerEventType.Exit) {
+                                                        hover = false
+                                                    },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (hover) {
+                                                    Image(
+                                                        painter = painterResource("还原1.svg"),
+                                                        contentDescription = null
+                                                    )
+                                                } else {
+                                                    Image(
+                                                        painter = painterResource("还原.svg"),
+                                                        contentDescription = null
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        Frame {
+                                            var hover by remember {
+                                                mutableStateOf(false)
+                                            }
+                                            val localDensity = LocalDensity.current
+                                            Box(
+                                                modifier = Modifier.clickable {
+                                                    isMax = true
+                                                    windowPosition = windowState.position
+                                                    windowSize = windowState.size
+                                                    logger.info("density: ${localDensity.density}, x: ${GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.x}, y: ${GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.y}, w: ${GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.width}, h: ${GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.height}")
+                                                    windowState.position = WindowPosition(x = 0.dp, y = 0.dp)
+                                                    windowState.size = DpSize(
+                                                        (GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.width).dp,
+                                                        (GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.height).dp
+                                                    )
+                                                }
+                                                    .background(color = if (hover) Color.Gray else Color.Transparent)
+                                                    .fillMaxHeight().padding(5.dp).width(40.dp)
+                                                    .onPointerEvent(eventType = PointerEventType.Move) {
+                                                        hover = true
+                                                    }.onPointerEvent(eventType = PointerEventType.Exit) {
+                                                        hover = false
+                                                    },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (hover) {
+                                                    Image(
+                                                        painter = painterResource("最大化1.svg"),
+                                                        contentDescription = null
+                                                    )
+                                                } else {
+                                                    Image(
+                                                        painter = painterResource("最大化.svg"),
+                                                        contentDescription = null
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
                                     Frame {
                                         var hover by remember {
                                             mutableStateOf(false)
                                         }
-                                        val localDensity = LocalDensity.current
                                         Box(
-                                            modifier = Modifier.clickable {
-                                                isMax = true
-                                                windowPosition = windowState.position
-                                                windowSize = windowState.size
-                                                logger.info("density: ${localDensity.density}, x: ${GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.x}, y: ${GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.y}, w: ${GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.width}, h: ${GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.height}")
-                                                windowState.position = WindowPosition(x = 0.dp, y = 0.dp)
-                                                windowState.size = DpSize(
-                                                    (GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.width).dp,
-                                                    (GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.height).dp
-                                                )
-                                            }
-                                                .background(color = if (hover) Color.Gray else Color.Transparent)
-                                                .fillMaxHeight().padding(5.dp).width(40.dp)
+                                            modifier = Modifier.clickable { app.exitApplication() }
+                                                .background(color = if (hover) Color.Red else Color.Transparent)
+                                                .fillMaxHeight().width(40.dp)
                                                 .onPointerEvent(eventType = PointerEventType.Move) {
                                                     hover = true
                                                 }.onPointerEvent(eventType = PointerEventType.Exit) {
@@ -710,50 +753,22 @@ fun main() = application {
                                         ) {
                                             if (hover) {
                                                 Image(
-                                                    painter = painterResource("最大化1.svg"),
+                                                    painter = painterResource("关闭1.svg"),
                                                     contentDescription = null
                                                 )
                                             } else {
                                                 Image(
-                                                    painter = painterResource("最大化.svg"),
+                                                    painter = painterResource("关闭.svg"),
                                                     contentDescription = null
                                                 )
                                             }
-                                        }
-                                    }
-                                }
-                                Frame {
-                                    var hover by remember {
-                                        mutableStateOf(false)
-                                    }
-                                    Box(
-                                        modifier = Modifier.clickable { app.exitApplication() }
-                                            .background(color = if (hover) Color.Red else Color.Transparent)
-                                            .fillMaxHeight().width(40.dp)
-                                            .onPointerEvent(eventType = PointerEventType.Move) {
-                                                hover = true
-                                            }.onPointerEvent(eventType = PointerEventType.Exit) {
-                                                hover = false
-                                            },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        if (hover) {
-                                            Image(
-                                                painter = painterResource("关闭1.svg"),
-                                                contentDescription = null
-                                            )
-                                        } else {
-                                            Image(
-                                                painter = painterResource("关闭.svg"),
-                                                contentDescription = null
-                                            )
                                         }
                                     }
                                 }
                             }
                         }
+                        App()
                     }
-                    App()
                 }
             }
         }

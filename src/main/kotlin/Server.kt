@@ -1,3 +1,4 @@
+import androidx.compose.runtime.*
 import com.google.gson.Gson
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -5,7 +6,6 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
-import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -24,9 +24,9 @@ import util.save
 import java.io.File
 import java.util.*
 
-class Progress(val messageId: Long?, val handleSize: Long, val totalSize: Long)
+class FileProgress(val messageId: Long?, val handleSize: Long, val totalSize: Long)
 
-val deviceMessageDownloadEvent = Event<Progress>()
+val deviceMessageDownloadEvent = Event<FileProgress>()
 
 fun startServer() {
     embeddedServer(Netty, applicationEngineEnvironment {
@@ -114,7 +114,7 @@ fun startServer() {
                                             downloadSize += bytes.size
                                             logger.info("下载进度: ${downloadSize.toDouble()/contentLength}, ${downloadSize}, ${contentLength}")
                                             async {
-                                                deviceMessageDownloadEvent.doAction(Progress(messageId = deviceMessage.id, handleSize = downloadSize, totalSize = contentLength))
+                                                deviceMessageDownloadEvent.doAction(FileProgress(messageId = deviceMessage.id, handleSize = downloadSize, totalSize = contentLength))
                                             }
                                         }
                                     }
@@ -150,4 +150,19 @@ fun startServer() {
             }
         }
     }).start()
+}
+
+@Composable
+fun OnDownloadProgressEvent(block: (data: FileProgress) -> Unit) {
+
+    var processTime by remember {
+        mutableStateOf(Date())
+    }
+
+    OnEvent(event = deviceMessageDownloadEvent, block = {
+        if (Date().time - processTime.time > 200 || (it.handleSize >= it.totalSize)) {
+            block(it)
+            processTime = Date()
+        }
+    })
 }
