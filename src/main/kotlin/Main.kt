@@ -68,6 +68,7 @@ val logger: Logger = LoggerFactory.getLogger("share")
 
 val httpClient = HttpClient {
     install(HttpTimeout) {
+        connectTimeoutMillis = 60000
         requestTimeoutMillis = 60000
     }
 }
@@ -114,7 +115,10 @@ fun App() {
                     deviceMessages.addAll(queryList("select * from device_message where device_id = $deviceId"))
                     if (scrollToBottom) {
                         currentCoroutineScope.launch {
-                            deviceMessageListState.animateScrollToItem(deviceMessages.size)
+                            val size = deviceMessages.size + 1
+                            logger.info("animateScrollToItem ${size}")
+                            delay(200)
+                            deviceMessageListState.animateScrollToItem(size)
                         }
                     }
                 }
