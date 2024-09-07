@@ -255,7 +255,7 @@ fun App() {
                                             if (item.type == "receive") {
                                                 Row(
                                                     modifier = Modifier.fillMaxWidth(0.7f).clip(RoundedCornerShape(5.dp))
-                                                        .background(Color.Green).padding(5.dp),
+                                                        .background(Color.Green).padding(start = 5.dp, top = 0.dp, end = 5.dp, bottom = 5.dp),
                                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                                                 ) {
                                                     SelectionContainer {
@@ -263,6 +263,7 @@ fun App() {
                                                             modifier = Modifier.weight(1f)
                                                         ) {
                                                             val fileProgress = fileProgressMap[item.id]
+                                                            Text(item.createdTime?.format("yyyy-MM-dd HH:mm:ss E") ?: "", fontSize = 13.sp, fontWeight = FontWeight.Light)
                                                             Text(
                                                                 text = buildAnnotatedString {
                                                                     if (item.filename != null) {
@@ -290,20 +291,15 @@ fun App() {
                                             if (item.type == "send") {
                                                 Row(
                                                     modifier = Modifier.fillMaxWidth(0.7f).clip(RoundedCornerShape(5.dp))
-                                                        .background(Color(141, 242, 242)).padding(5.dp),
+                                                        .background(Color(141, 242, 242))
+                                                        .padding(start = 5.dp, top = 0.dp, end = 5.dp, bottom = 5.dp),
                                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                                                 ) {
                                                     SelectionContainer {
-                                                        val localTextToolbar = LocalTextToolbar.current
-                                                        localTextToolbar.showMenu(
-                                                            rect = Rect.Zero,
-                                                            onCopyRequested = {
-                                                                logger.info("复制")
-                                                            }
-                                                        )
                                                         Column(
                                                             modifier = Modifier.weight(1f)
                                                         ) {
+                                                            Text(item.createdTime?.format("yyyy-MM-dd HH:mm:ss E") ?: "", fontSize = 13.sp, fontWeight = FontWeight.Light)
                                                             if (item.filename != null) {
                                                                 Text(
                                                                     text = buildAnnotatedString {
