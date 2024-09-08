@@ -119,8 +119,8 @@ fun App() {
                         val size = deviceMessages.size
                         if (size > oldSize) {
                             currentCoroutineScope.launch {
-                                delay(200)
-                                deviceMessageListState.animateScrollToItem(size)
+                                delay(50)
+                                deviceMessageListState.scrollToItem(size)
                             }
                         }
                     }
@@ -270,7 +270,6 @@ fun App() {
                                                             modifier = Modifier.weight(1f)
                                                         ) {
                                                             val fileProgress = fileProgressMap[item.id]
-                                                            Text(item.createdTime?.format("yyyy-MM-dd HH:mm:ss E") ?: "", fontSize = 13.sp, fontWeight = FontWeight.Light)
                                                             Text(text = item.filename ?: "")
                                                             Row(
                                                                 verticalAlignment = Alignment.CenterVertically,
@@ -304,6 +303,9 @@ fun App() {
                                                                     text = item.content ?: ""
                                                                 )
                                                             }
+                                                            Text(item.createdTime?.format("yyyy-MM-dd HH:mm:ss E") ?: "",
+                                                                fontSize = 13.sp, fontWeight = FontWeight.Light,
+                                                                modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End)
                                                         }
                                                     }
                                                 }
@@ -319,7 +321,6 @@ fun App() {
                                                         Column(
                                                             modifier = Modifier.weight(1f)
                                                         ) {
-                                                            Text(item.createdTime?.format("yyyy-MM-dd HH:mm:ss E") ?: "", fontSize = 13.sp, fontWeight = FontWeight.Light)
                                                             if (item.filename != null) {
                                                                 Text(
                                                                     text = buildAnnotatedString {
@@ -337,6 +338,9 @@ fun App() {
                                                                     text = item.content ?: ""
                                                                 )
                                                             }
+                                                            Text(item.createdTime?.format("yyyy-MM-dd HH:mm:ss E") ?: "",
+                                                                fontSize = 13.sp, fontWeight = FontWeight.Light,
+                                                                modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End)
                                                         }
                                                     }
                                                 }
