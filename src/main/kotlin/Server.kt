@@ -10,26 +10,31 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.core.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import model.Device
 import model.DeviceMessage
 import model.DeviceMessageParams
 import org.slf4j.LoggerFactory
 import util.*
 import java.io.File
+import java.net.InetAddress
 import java.util.*
+import javax.jmdns.JmDNS
+import javax.jmdns.ServiceEvent
+import javax.jmdns.ServiceInfo
+import javax.jmdns.ServiceListener
+import javax.jmdns.ServiceTypeListener
 
 class FileProgress(val messageId: Long?, val handleSize: Long, val totalSize: Long)
 
 val deviceMessageDownloadEvent = Event<FileProgress>()
 
 fun startServer() {
+    val httpPort = serverPort ?: return
     embeddedServer(Netty, applicationEngineEnvironment {
         log = LoggerFactory.getLogger("ktor.server")
         connector {
-            port = 20000
+            port = httpPort
         }
         module {
             routing {
@@ -54,7 +59,9 @@ fun startServer() {
                     async {
                         deviceEvent.doAction(Unit)
                     }
-                    call.respond(getDevice())
+                    call.respondText(contentType = ContentType.Application.Json) {
+                        Gson().toJson(getDevice())
+                    }
                 }
 
                 post("/message") {
@@ -97,6 +104,7 @@ fun startServer() {
             }
         }
     }).start()
+    startMDns()
 }
 
 @Composable
@@ -111,5 +119,40 @@ fun OnDownloadProgressEvent(block: (data: FileProgress) -> Unit) {
             block(it)
             processTime = Date()
         }
+    })
+}
+
+fun startMDns() {
+    val device = getDevice()
+    val httpPort = device.port ?: return
+    val serviceType = "_share._tcp.local."
+    val serviceName = device.clientCode ?: return
+    logger.info("startMDns: ${serviceType}, ${serviceName}")
+    val jmDNS = JmDNS.create(InetAddress.getLocalHost().also {
+        logger.info("startMDns: ${it.hostAddress}")
+    }, serviceName)
+    jmDNS.registerService(ServiceInfo.create(serviceType, serviceName, httpPort, ""))
+    jmDNS.addServiceListener(serviceType, object : ServiceListener {
+        override fun serviceAdded(event: ServiceEvent?) {
+            logger.info("发现设备: ${event?.type}, ${event?.name}")
+            if (event?.type == serviceType && event.name != device.clientCode) {
+                logger.info("解析")
+                jmDNS.requestServiceInfo(event.type, event.name, 1)
+            }
+        }
+
+        override fun serviceRemoved(event: ServiceEvent?) {
+            logger.info("serviceRemoved: ${event?.type}, ${event?.name}")
+        }
+
+        override fun serviceResolved(event: ServiceEvent?) {
+            logger.info("serviceResolved: ${event?.type}, ${event?.name}, ${event?.info?.inet4Addresses?.joinToString { it.toString() }}, ${event?.info?.port}")
+            val ip = event?.info?.inet4Addresses?.firstOrNull()
+            val port = event?.info?.port
+            CoroutineScope(Dispatchers.IO).launch {
+                exchangeDevice(ip?.toString(), port)
+            }
+        }
+
     })
 }

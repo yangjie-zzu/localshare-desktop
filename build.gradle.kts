@@ -31,6 +31,9 @@ dependencies {
     implementation("org.xerial:sqlite-jdbc:3.46.0.0")
     implementation("com.darkrockstudios:mpfilepicker:3.1.0")
     implementation("com.google.zxing:core:3.5.1")
+    // https://mvnrepository.com/artifact/org.jmdns/jmdns
+    implementation("org.jmdns:jmdns:3.5.12")
+
 }
 
 compose.desktop {
@@ -38,7 +41,7 @@ compose.desktop {
         mainClass = "MainKt"
 
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
+            targetFormats(TargetFormat.Dmg, TargetFormat.Exe, TargetFormat.Deb)
             packageName = "localshare-desktop"
             packageVersion = "1.0.0"
         }

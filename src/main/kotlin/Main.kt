@@ -580,7 +580,7 @@ val LocalApplication = compositionLocalOf<ApplicationScope?> { null }
 
 val LocalWindow = compositionLocalOf<WindowState?> { null }
 
-var serverPort: Int? = 20000
+var serverPort: Int? = 2000
 
 var clientCode: String? = null
 
@@ -596,7 +596,15 @@ fun getDevice(): Device {
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
-fun main() = application {
+fun main(args: Array<String>) = application {
+    logger.info("args: ${args.joinToString { it }}")
+    serverPort = kotlin.run {
+        if (args.isNotEmpty()) {
+            args[0].toInt()
+        } else {
+            20000
+        }
+    }
     val app = this
     CoroutineScope(Dispatchers.Default).launch {
         transaction {
@@ -619,8 +627,9 @@ fun main() = application {
             }
             sysInfo.value
         }
+        logger.info("启动http服务")
+        startServer()
     }
-    startServer()
     CompositionLocalProvider(LocalApplication provides app) {
         val windowState = rememberWindowState(position = WindowPosition(alignment = Alignment.Center))
         Window(
