@@ -438,7 +438,8 @@ fun App() {
                                 }
                                 fun sendMsg() {
                                     CoroutineScope(Dispatchers.IO).launch {
-                                        transaction {
+                                        transaction("sendMsg") {
+                                            logger.info("开始发送")
                                             val deviceMessage = DeviceMessage(
                                                 type = "send",
                                                 content = content,
@@ -451,6 +452,10 @@ fun App() {
                                             save(deviceMessage)
                                             val response =
                                                 httpClient.post("http://${activeDevice?.ip}:${activeDevice?.port}/message") {
+                                                    timeout {
+                                                        connectTimeoutMillis = 1000
+                                                        requestTimeoutMillis = 5000
+                                                    }
                                                     val deviceMessageParams = Gson().toJson(DeviceMessageParams(
                                                         sendId = deviceMessage.id,
                                                         clientCode = clientCode,
