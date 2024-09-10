@@ -3,6 +3,7 @@ import com.google.gson.Gson
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.http.content.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
@@ -88,7 +89,8 @@ fun startServer() {
                         deviceMessageEvent.doAction(deviceMessage)
                         downloadMessageFile(device, deviceMessage)
                     }
-                    call.response.status(HttpStatusCode.OK)
+                    call.respond(NullBody)
+                    logger.info("/message回复")
                 }
 
                 get("/download") {

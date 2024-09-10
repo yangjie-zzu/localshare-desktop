@@ -8,6 +8,7 @@ import deviceMessageEvent
 import getDevice
 import httpClient
 import io.ktor.client.call.*
+import io.ktor.client.plugins.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
@@ -42,6 +43,9 @@ suspend fun downloadMessageFile(device: Device?, deviceMessage: DeviceMessage) {
         }
         logger.info("file: ${file.absolutePath}")
         httpClient.prepareGet("http://${device.ip}:${device.port}/download?messageId=${deviceMessage.oppositeId}") {
+            timeout {
+                requestTimeoutMillis = HttpTimeout.INFINITE_TIMEOUT_MS
+            }
         }.execute { response ->
             val contentLength = response.headers[HttpHeaders.ContentLength]?.toLong() ?: 0L
             var downloadSize = 0L
@@ -55,7 +59,7 @@ suspend fun downloadMessageFile(device: Device?, deviceMessage: DeviceMessage) {
                         val bytes = packet.readBytes()
                         file.appendBytes(bytes)
                         downloadSize += bytes.size
-                        logger.info("下载进度: ${downloadSize.toDouble()/contentLength}, ${downloadSize}, ${contentLength}")
+//                        logger.info("下载进度: ${downloadSize.toDouble()/contentLength}, ${downloadSize}, ${contentLength}")
                         async {
                             deviceMessageDownloadEvent.doAction(FileProgress(messageId = deviceMessage.id, handleSize = downloadSize, totalSize = contentLength))
                         }
