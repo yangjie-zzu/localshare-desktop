@@ -2,6 +2,7 @@ package util
 
 import FileProgress
 import com.google.gson.Gson
+import deviceEvent
 import deviceMessageDownloadEvent
 import deviceMessageEvent
 import getDevice
@@ -11,9 +12,7 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.utils.io.core.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import logger
 import model.Device
 import model.DeviceMessage
@@ -75,33 +74,39 @@ suspend fun downloadMessageFile(device: Device?, deviceMessage: DeviceMessage) {
 }
 
 suspend fun exchangeDevice(ip: String?, port: Int?): Device? {
-    if (ip == null || port == null) {
-        return null
-    }
-    val response = httpClient.post("http://${ip}:${port}/exchange") {
-        setBody(Gson().toJson(getDevice()))
-        contentType(ContentType.Application.Json)
-    }
-    logger.info("status: ${response.status}")
-    if (response.status == HttpStatusCode.OK) {
-        val body = response.body<String>()
-        logger.info("body: $body")
-        val deviceResult = Gson().fromJson(body, Device::class.java)
-        var otherDevice = queryList<Device>("select * from device where client_id = '${deviceResult.clientCode}'").firstOrNull()
-        if (otherDevice == null) {
-            otherDevice = Device()
+    return transaction {
+        if (ip == null || port == null) {
+            return@transaction null
         }
-        otherDevice.clientCode = deviceResult.clientCode
-        otherDevice.name = deviceResult.name
-        otherDevice.ip = deviceResult.ip
-        otherDevice.port = deviceResult.port
-        otherDevice.channelType = deviceResult.channelType
-        otherDevice.osName = deviceResult.osName
-        otherDevice.networkType = deviceResult.networkType
-        otherDevice.wifiName = deviceResult.wifiName
-        save(otherDevice)
-        return otherDevice
-    } else {
-        return null
+        val response = httpClient.post("http://${ip}:${port}/exchange") {
+            setBody(Gson().toJson(getDevice()))
+            contentType(ContentType.Application.Json)
+        }
+        logger.info("status: ${response.status}")
+        if (response.status == HttpStatusCode.OK) {
+            val body = response.body<String>()
+            logger.info("body: $body")
+            val deviceResult = Gson().fromJson(body, Device::class.java)
+            var otherDevice = queryList<Device>("select * from device where client_code = '${deviceResult.clientCode}'").firstOrNull()
+            logger.info("otherDevice: {}", otherDevice)
+            if (otherDevice == null) {
+                otherDevice = Device()
+            }
+            otherDevice.clientCode = deviceResult.clientCode
+            otherDevice.name = deviceResult.name
+            otherDevice.ip = deviceResult.ip
+            otherDevice.port = deviceResult.port
+            otherDevice.channelType = deviceResult.channelType
+            otherDevice.osName = deviceResult.osName
+            otherDevice.networkType = deviceResult.networkType
+            otherDevice.wifiName = deviceResult.wifiName
+            save(otherDevice)
+            CoroutineScope(Dispatchers.IO).launch {
+                deviceEvent.doAction(Unit)
+            }
+            return@transaction otherDevice
+        } else {
+            return@transaction null
+        }
     }
 }

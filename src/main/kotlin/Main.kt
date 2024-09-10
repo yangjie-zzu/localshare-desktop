@@ -64,6 +64,7 @@ import java.io.File
 import java.net.InetAddress
 import java.nio.charset.Charset
 import java.util.*
+import kotlin.collections.List
 
 val logger: Logger = LoggerFactory.getLogger("share")
 
@@ -83,14 +84,13 @@ fun App() {
     MaterialTheme {
         Column {
             Row {
-                val devices = remember {
-                    mutableStateListOf<Device>()
+                var devices by remember {
+                    mutableStateOf<List<Device>>(listOf())
                 }
                 val requestDevices = suspend {
                     val list = queryList<Device>("select * from device")
-                    logger.info("device size: ${list.size}")
-                    devices.clear()
-                    devices.addAll(list)
+                    logger.info("deviceIds: ${list.joinToString { "${it.id}" }}")
+                    devices = list
                 }
                 LaunchedEffect(Unit) {
                     requestDevices()
@@ -149,7 +149,6 @@ fun App() {
                 LazyColumn(
                     modifier = Modifier.width(200.dp)
                 ) {
-                    logger.info("devices: ${devices.size}")
                     itemsIndexed(devices, { _, it -> it.id ?: "" }) { _, item ->
                         var offsetX by remember {
                             mutableStateOf(0f)
@@ -194,6 +193,7 @@ fun App() {
                                             modifier = Modifier.clickable {
                                                 CoroutineScope(Dispatchers.IO).launch {
                                                     delete<Device>(item.id)
+                                                    activeDevice = null
                                                     requestDevices()
                                                 }
                                             }.padding(5.dp)
@@ -526,7 +526,7 @@ fun App() {
                             Text("wifiName: ${self.wifiName ?: ""}")
                         }
                     }
-                    val url = "http://${self.ip}:${self.port}/exchange"
+                    val url = "http://${self.ip}:${self.port}/code"
                     val byteMatrix = remember(url) {
                         Encoder.encode(
                             url,
@@ -598,6 +598,19 @@ fun getDevice(): Device {
 @OptIn(ExperimentalComposeUiApi::class)
 fun main(args: Array<String>) = application {
     logger.info("args: ${args.joinToString { it }}")
+    CoroutineScope(Dispatchers.IO).launch {
+        val taskQueue = TaskQueue()
+        taskQueue.execute {
+            logger.info("任务1")
+            taskQueue.execute {
+                logger.info("任务2")
+                taskQueue.execute {
+                    logger.info("任务2.1")
+                }
+            }
+            logger.info("任务3")
+        }
+    }
     serverPort = kotlin.run {
         if (args.isNotEmpty()) {
             args[0].toInt()
@@ -608,15 +621,17 @@ fun main(args: Array<String>) = application {
     val app = this
     CoroutineScope(Dispatchers.Default).launch {
         transaction {
-            logger.info("测试: ${localTransactionManager.get().schema}")
+            logger.info("测试: ${localTransactionManager.get()?.connection?.schema}")
             logger.info("select 1: ${queryMap("select 1")}")
+            logger.info("表结构同步开始")
+            listOf(Device::class, DeviceMessage::class, SysInfo::class).forEach {
+                logger.info("单表同步${it.simpleName}开始")
+                updateTableStruct(it)
+                logger.info("单表同步${it.simpleName}结束")
+            }
+            logger.info("表结构同步成功")
         }
-        logger.info("表结构同步开始")
-        listOf(Device::class, DeviceMessage::class, SysInfo::class).forEach {
-            updateTableStruct(it)
-        }
-        logger.info("表结构同步成功")
-        clientCode = run {
+        clientCode = transaction("client_id") {
             var sysInfo = queryOne<SysInfo>("select * from sys_info where name = 'client_id'")
             if (sysInfo == null) {
                 sysInfo = SysInfo(

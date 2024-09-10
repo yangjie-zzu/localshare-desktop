@@ -38,12 +38,17 @@ fun startServer() {
         }
         module {
             routing {
+                get("/code") {
+
+                }
                 post("/exchange") {
                     logger.info("exchange")
                     val body = call.receiveText()
                     val (_, clientCode, name, ip, port, channelType, osName, networkType, wifiName) = Gson().fromJson(body, Device::class.java)
+                    logger.info("clientCode: ${clientCode}")
                     var otherDevice =
                         queryList<Device>("select * from device where client_code = '${clientCode}'").firstOrNull()
+                    logger.info("otherDevice: {}", otherDevice)
                     if (otherDevice == null) {
                         otherDevice = Device()
                     }
@@ -134,7 +139,7 @@ fun startMDns() {
     jmDNS.registerService(ServiceInfo.create(serviceType, serviceName, httpPort, ""))
     jmDNS.addServiceListener(serviceType, object : ServiceListener {
         override fun serviceAdded(event: ServiceEvent?) {
-            logger.info("发现设备: ${event?.type}, ${event?.name}")
+            logger.info("发现设备: ${event?.type}, ${event?.name}, ${device.clientCode}")
             if (event?.type == serviceType && event.name != device.clientCode) {
                 logger.info("解析")
                 jmDNS.requestServiceInfo(event.type, event.name, 1)
@@ -146,11 +151,13 @@ fun startMDns() {
         }
 
         override fun serviceResolved(event: ServiceEvent?) {
-            logger.info("serviceResolved: ${event?.type}, ${event?.name}, ${event?.info?.inet4Addresses?.joinToString { it.toString() }}, ${event?.info?.port}")
+            logger.info("解析设备: ${event?.type}, ${event?.name}, ${event?.info?.inet4Addresses?.joinToString { it.toString() }}, ${event?.info?.port}")
             val ip = event?.info?.inet4Addresses?.firstOrNull()
             val port = event?.info?.port
-            CoroutineScope(Dispatchers.IO).launch {
-                exchangeDevice(ip?.toString(), port)
+            if (event?.type == serviceType && event.name != device.clientCode) {
+                CoroutineScope(Dispatchers.IO).launch {
+                    exchangeDevice(ip?.toString(), port)
+                }
             }
         }
 

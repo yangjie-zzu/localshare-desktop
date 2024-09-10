@@ -1,6 +1,7 @@
 package util
 
 import kotlinx.coroutines.asContextElement
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.withContext
 import logger
 import java.lang.reflect.Type
@@ -10,6 +11,7 @@ import java.sql.DriverManager
 import java.sql.Statement
 import java.sql.Types
 import java.util.Date
+import java.util.concurrent.Executors
 import java.util.regex.Pattern
 import kotlin.concurrent.getOrSet
 import kotlin.coroutines.resume
@@ -60,28 +62,48 @@ fun getSqliteType(clazz: Type?): String? {
     }
 }
 
+class ConnInfo(
+    val transactionName: String? = null,
+    val connection: Connection,
+    val parent: ConnInfo? = null
+)
+
 fun getDbConn(): Connection = DriverManager.getConnection("jdbc:sqlite:share.db")
 
 fun runSql(block: (conn: Connection) -> Unit) {
-    val conn = localTransactionManager.getOrSet { getDbConn() }
-    block(conn)
+    val conn = localTransactionManager.get()
+    if (conn != null) {
+        block(conn.connection)
+    } else {
+        block(getDbConn())
+    }
 }
 
-val localTransactionManager = ThreadLocal<Connection>()
+val localTransactionManager = ThreadLocal<ConnInfo?>()
 
-suspend fun transaction(block: suspend () -> Unit) {
-    val conn = getDbConn()
-    conn.use {
-        withContext(localTransactionManager.asContextElement(conn)) {
+suspend fun <T> transaction(name: String? = null, block: suspend () -> T): T {
+    val parentConnInfo = localTransactionManager.get()
+    val conn = ConnInfo(
+        transactionName = name,
+        connection = parentConnInfo?.connection ?: getDbConn(),
+        parent = parentConnInfo
+    )
+    logger.info("${name?.let { "-${it}-" } ?: ""}连接信息: ${conn.transactionName}, ${conn.parent?.transactionName}")
+    val isSub = threadLocalQueueFlag.get() == true
+    return taskQueue.execute(context = localTransactionManager.asContextElement(conn)) {
+        conn.connection.use {
             try {
-                conn.autoCommit = false
-                block()
-                conn.commit()
+                logger.info("------------------- 开始${if (isSub) "子" else "" }事务${name?.let {s -> "-${s}-" } ?: ""}(${Thread.currentThread().threadId()}) ------------------------")
+                it.autoCommit = false
+                val result = block()
+                it.commit()
+                result
             } catch (e : Exception) {
-                conn.rollback()
+                it.rollback()
                 throw e
             } finally {
-                conn.autoCommit = true
+                it.autoCommit = true
+                logger.info("------------------- 结束${if (isSub) "子" else "" }事务${name?.let {s -> "-${s}-" } ?: ""}(${Thread.currentThread().threadId()}) ------------------------")
             }
         }
     }
@@ -302,7 +324,7 @@ suspend inline fun <T : Any> updateTableStruct(kClazz: KClass<T>) {
     logger.info("旧表: ${oldTable}")
     if (oldTable == null) {
         val sql = """
-                    create table ${tableInfo.name}(${tableInfo.columns?.joinToString(", ") { "${it.name} ${it.type}${if (it.isPrimaryKey == true) " primary key" else ""}" }})
+                    create table ${tableInfo.name}(${tableInfo.columns?.joinToString(", ") { "${it.name} ${it.type}${if (it.isPrimaryKey == true) " primary key AUTOINCREMENT " else ""}" }})
                 """.trimIndent()
         logger.info("建表sql: $sql")
         executeSql(sql)
