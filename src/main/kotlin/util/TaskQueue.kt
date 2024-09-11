@@ -31,7 +31,11 @@ class TaskQueue(
         } else {
             suspendCoroutine {
                 val job = scope.launch(context = context + threadLocalQueueFlag.asContextElement(true), start = CoroutineStart.LAZY) {
-                    it.resume(block())
+                    try {
+                        it.resume(block())
+                    } catch (e : Exception) {
+                        it.resumeWithException(e)
+                    }
                 }
                 queue.trySend(job)
             }

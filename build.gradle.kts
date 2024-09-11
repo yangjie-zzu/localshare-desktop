@@ -33,6 +33,7 @@ dependencies {
     implementation("com.google.zxing:core:3.5.1")
     // https://mvnrepository.com/artifact/org.jmdns/jmdns
     implementation("org.jmdns:jmdns:3.5.12")
+    implementation("io.ktor:ktor-server-partial-content:2.3.12")
 
 }
 

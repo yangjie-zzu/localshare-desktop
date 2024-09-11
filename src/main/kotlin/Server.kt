@@ -7,6 +7,7 @@ import io.ktor.http.content.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
+import io.ktor.server.plugins.partialcontent.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -38,6 +39,7 @@ fun startServer() {
             port = httpPort
         }
         module {
+            install(PartialContent)
             routing {
                 get("/code") {
 
@@ -104,6 +106,10 @@ fun startServer() {
                         if (!file.exists() || file.isDirectory) {
                             call.respond(status = HttpStatusCode.NotFound, "not found file")
                         } else {
+                            call.response.header(
+                                HttpHeaders.ContentDisposition,
+                                ContentDisposition.Attachment.withParameter(ContentDisposition.Parameters.FileName, file.name).toString()
+                            )
                             call.respondFile(file = file)
                         }
                     }

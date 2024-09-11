@@ -453,7 +453,7 @@ fun App() {
                                             val response =
                                                 httpClient.post("http://${activeDevice?.ip}:${activeDevice?.port}/message") {
                                                     timeout {
-                                                        connectTimeoutMillis = 1000
+                                                        connectTimeoutMillis = 30000
                                                         requestTimeoutMillis = 5000
                                                     }
                                                     val deviceMessageParams = Gson().toJson(DeviceMessageParams(
