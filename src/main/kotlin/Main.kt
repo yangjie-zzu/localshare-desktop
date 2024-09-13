@@ -270,33 +270,35 @@ fun App() {
                                                             modifier = Modifier.weight(1f)
                                                         ) {
                                                             val fileProgress = fileProgressMap[item.id]
-                                                            Text(text = item.filename ?: "")
-                                                            Row(
-                                                                verticalAlignment = Alignment.CenterVertically,
-                                                                horizontalArrangement = Arrangement.spacedBy(3.dp)
-                                                            ) {
-                                                                Box(modifier = Modifier.size(20.dp)) {
-                                                                    if (item.filename != null && item.downloadSuccess != true && fileProgress == null) {
-                                                                        Image(painter = painterResource("下载(2).svg"), contentDescription = "",
-                                                                            modifier = Modifier.clickable {
-                                                                                currentCoroutineScope.launch {
-                                                                                    downloadMessageFile(activeDevice, item)
+                                                            if (item.filename != null) {
+                                                                Text(text = item.filename ?: "")
+                                                                Row(
+                                                                    verticalAlignment = Alignment.CenterVertically,
+                                                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                                                ) {
+                                                                    Box(modifier = Modifier.size(20.dp)) {
+                                                                        if (item.filename != null && item.downloadSuccess != true && fileProgress == null) {
+                                                                            Image(painter = painterResource("下载(2).svg"), contentDescription = "",
+                                                                                modifier = Modifier.clickable {
+                                                                                    currentCoroutineScope.launch {
+                                                                                        downloadMessageFile(activeDevice, item)
+                                                                                    }
                                                                                 }
-                                                                            }
-                                                                        )
+                                                                            )
+                                                                        }
+                                                                        if (item.downloadSuccess == true) {
+                                                                            Image(painter = painterResource("下载完成(3).svg"), contentDescription = "")
+                                                                        } else if (fileProgress != null) {
+                                                                            CircularProgressIndicator(
+                                                                                progress = fileProgress.handleSize.toFloat()/fileProgress.totalSize
+                                                                            )
+                                                                        }
                                                                     }
-                                                                    if (item.downloadSuccess == true) {
-                                                                        Image(painter = painterResource("下载完成(3).svg"), contentDescription = "")
-                                                                    } else if (fileProgress != null) {
-                                                                        CircularProgressIndicator(
-                                                                            progress = fileProgress.handleSize.toFloat()/fileProgress.totalSize
-                                                                        )
-                                                                    }
+                                                                    Text(
+                                                                        text = "${fileProgress?.let { fileProgress ->  "${readableFileSize(fileProgress.handleSize)}/" } ?: ""}${readableFileSize(fileProgress?.totalSize ?: item.size)}",
+                                                                        fontWeight = FontWeight.Light, fontSize = 14.sp
+                                                                    )
                                                                 }
-                                                                Text(
-                                                                    text = "${fileProgress?.let { fileProgress ->  "${readableFileSize(fileProgress.handleSize)}/" } ?: ""}${readableFileSize(fileProgress?.totalSize ?: item.size)}",
-                                                                    fontWeight = FontWeight.Light, fontSize = 14.sp
-                                                                )
                                                             }
                                                             if (item.content != null) {
                                                                 Text(
@@ -438,43 +440,42 @@ fun App() {
                                 }
                                 fun sendMsg() {
                                     CoroutineScope(Dispatchers.IO).launch {
-                                        transaction("sendMsg") {
-                                            logger.info("开始发送")
-                                            val deviceMessage = DeviceMessage(
-                                                type = "send",
-                                                content = content,
-                                                filepath = file?.absolutePath,
-                                                filename = file?.name,
-                                                size = file?.length(),
-                                                deviceId = activeDevice?.id,
-                                                createdTime = Date()
-                                            )
-                                            save(deviceMessage)
-                                            val response =
-                                                httpClient.post("http://${activeDevice?.ip}:${activeDevice?.port}/message") {
-                                                    timeout {
-                                                        connectTimeoutMillis = 30000
-                                                        requestTimeoutMillis = 5000
-                                                    }
-                                                    val deviceMessageParams = Gson().toJson(DeviceMessageParams(
-                                                        sendId = deviceMessage.id,
-                                                        clientCode = clientCode,
-                                                        content = deviceMessage.content,
-                                                        filename = deviceMessage.filename,
-                                                        size = deviceMessage.size
-                                                    ))
-                                                    logger.info("deviceMessageParams: {}", deviceMessageParams)
-                                                    setBody(
-                                                        deviceMessageParams
-                                                    )
-                                                    contentType(ContentType.Application.Json)
+                                        logger.info("开始发送")
+                                        val deviceMessage = DeviceMessage(
+                                            type = "send",
+                                            content = content,
+                                            filepath = file?.absolutePath,
+                                            filename = file?.name,
+                                            size = file?.length(),
+                                            deviceId = activeDevice?.id,
+                                            createdTime = Date()
+                                        )
+                                        save(deviceMessage)
+                                        requestMessages(activeDevice?.id)
+                                        val response =
+                                            httpClient.post("http://${activeDevice?.ip}:${activeDevice?.port}/message") {
+                                                timeout {
+                                                    connectTimeoutMillis = 30000
+                                                    requestTimeoutMillis = 5000
                                                 }
-                                            if (response.status == HttpStatusCode.OK) {
-                                                logger.info("发送成功")
-                                                val body = response.bodyAsText()
-                                                deviceMessage.sendSuccess = true
-                                                save(deviceMessage)
+                                                val deviceMessageParams = Gson().toJson(DeviceMessageParams(
+                                                    sendId = deviceMessage.id,
+                                                    clientCode = clientCode,
+                                                    content = deviceMessage.content,
+                                                    filename = deviceMessage.filename,
+                                                    size = deviceMessage.size
+                                                ))
+                                                logger.info("deviceMessageParams: {}", deviceMessageParams)
+                                                setBody(
+                                                    deviceMessageParams
+                                                )
+                                                contentType(ContentType.Application.Json)
                                             }
+                                        if (response.status == HttpStatusCode.OK) {
+                                            logger.info("发送成功")
+                                            val body = response.bodyAsText()
+                                            deviceMessage.sendSuccess = true
+                                            save(deviceMessage)
                                             requestMessages(activeDevice?.id)
                                         }
                                     }
