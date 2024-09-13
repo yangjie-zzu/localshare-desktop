@@ -160,6 +160,7 @@ suspend fun queryMap(sql: String?, args: Array<String>? = null): List<Map<String
 }
 
 suspend inline fun <reified T> queryList(sql: String?, args: Array<String>? = null): List<T> {
+    logger.info("queryList: ${sql}")
     return suspendCoroutine { continuation ->
         runSql { conn ->
             val statement = conn.prepareStatement(sql)

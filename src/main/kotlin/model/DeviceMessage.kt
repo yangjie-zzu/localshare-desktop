@@ -12,6 +12,7 @@ data class DeviceMessage(
     var content: String? = null,
     var filepath: String? = null,
     var filename: String? = null,
+    var fileHash: String? = null,
     var size: Long? = null,
     var oppositeId: Long? = null,
     var sendSuccess: Boolean? = null,
@@ -26,4 +27,9 @@ data class DeviceMessageParams(
     var content: String?,
     var filename: String?,
     var size: Long? = null
+)
+
+data class DownloadInfo(
+    val size: Long,
+    val hash: String
 )

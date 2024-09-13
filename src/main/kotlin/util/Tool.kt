@@ -18,7 +18,10 @@ import logger
 import model.Device
 import model.DeviceMessage
 import java.io.File
+import java.io.InputStream
+import java.security.MessageDigest
 import java.util.*
+import kotlin.experimental.and
 
 suspend fun downloadMessageFile(device: Device?, deviceMessage: DeviceMessage) {
     val filename = deviceMessage.filename
@@ -113,4 +116,22 @@ suspend fun exchangeDevice(ip: String?, port: Int?): Device? {
             return@transaction null
         }
     }
+}
+
+fun hash(inputStream: InputStream): String {
+    val messageDigest = MessageDigest.getInstance("MD5")
+    val byteArray = ByteArray(1024)
+    var byteCount = 0
+    while (run {
+            byteCount = inputStream.read(byteArray)
+            byteCount
+    } != -1) {
+        messageDigest.update(byteArray, 0, byteCount)
+    }
+    val bytes = messageDigest.digest()
+    val sb = StringBuilder()
+    for (byte in bytes) {
+        sb.append(((byte and 0xff.toByte()) + 0x100).toString(16).substring(1))
+    }
+    return sb.toString()
 }

@@ -16,9 +16,11 @@ import kotlinx.coroutines.*
 import model.Device
 import model.DeviceMessage
 import model.DeviceMessageParams
+import model.DownloadInfo
 import org.slf4j.LoggerFactory
 import util.*
 import java.io.File
+import java.io.FileInputStream
 import java.net.InetAddress
 import java.util.*
 import javax.jmdns.JmDNS
@@ -111,6 +113,27 @@ fun startServer() {
                                 ContentDisposition.Attachment.withParameter(ContentDisposition.Parameters.FileName, file.name).toString()
                             )
                             call.respondFile(file = file)
+                        }
+                    }
+                }
+
+                get("/downloadInfo") {
+                    val messageId = call.parameters.get("messageId")?.toLong()
+                    val deviceMessage = queryOne<DeviceMessage>("select * from device_message where id = ${messageId}")
+                    val filepath = deviceMessage?.filepath
+                    if (filepath == null) {
+                        call.respond(status = HttpStatusCode.NotFound, "not found path")
+                    } else {
+                        val file = File(filepath)
+                        if (!file.exists() || file.isDirectory) {
+                            call.respond(status = HttpStatusCode.NotFound, "not found file")
+                        } else {
+                            FileInputStream(file).use {
+                                call.respondText(Gson().toJson(DownloadInfo(
+                                    size = file.length(),
+                                    hash = hash(it)
+                                )))
+                            }
                         }
                     }
                 }
