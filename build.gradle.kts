@@ -25,6 +25,7 @@ dependencies {
     implementation("io.ktor:ktor-server-call-logging:2.3.12")
     implementation("io.ktor:ktor-server-content-negotiation:2.3.12")
     implementation("io.ktor:ktor-serialization-gson:2.3.12")
+    implementation("io.ktor:ktor-server-partial-content:2.3.12")
     implementation("io.ktor:ktor-client-core:2.3.12")
     implementation("io.ktor:ktor-client-cio:2.3.12")
     implementation("ch.qos.logback:logback-classic:1.5.3")
@@ -33,7 +34,6 @@ dependencies {
     implementation("com.google.zxing:core:3.5.1")
     // https://mvnrepository.com/artifact/org.jmdns/jmdns
     implementation("org.jmdns:jmdns:3.5.12")
-    implementation("io.ktor:ktor-server-partial-content:2.3.12")
 
 }
 

@@ -1,9 +1,11 @@
 package util
 
-import FileProgress
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import com.google.gson.Gson
 import deviceEvent
-import deviceMessageDownloadEvent
 import deviceMessageEvent
 import getDevice
 import httpClient
@@ -14,68 +16,203 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.utils.io.core.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import logger
-import model.Device
-import model.DeviceMessage
+import model.*
 import java.io.File
+import java.io.FileInputStream
 import java.io.InputStream
+import java.io.RandomAccessFile
+import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.*
 import kotlin.experimental.and
+import kotlin.math.min
+
+class FileProgress(val messageId: Long?, val handleSize: Long)
+
+val fileProgresses = mutableMapOf<Long?, FileProgress?>()
+val fileProgressMutex = Mutex()
 
 suspend fun downloadMessageFile(device: Device?, deviceMessage: DeviceMessage) {
     val filename = deviceMessage.filename
     if (device != null && filename != null) {
-        val file = run {
-            val downloadPath = "${System.getProperty("user.home")}/Downloads"
-            val dir = File(downloadPath)
-            if (!dir.exists()) {
-                dir.mkdirs()
+        try {
+            fileProgressMutex.withLock {
+                if (fileProgresses[deviceMessage.id] != null) {
+                    logger.info("正在下载, ${deviceMessage.id}")
+                    return
+                }
+                fileProgresses[deviceMessage.id] = FileProgress(
+                    messageId = deviceMessage.id,
+                    handleSize = 0
+                )
             }
-            var downloadFile = File(downloadPath, filename)
-            if (downloadFile.exists()) {
-                val nameAndType = getFileNameAndType(filename)
-                var i = 1
-                do {
-                    downloadFile = File(downloadPath, "${nameAndType?.get(0)}(${i})${if (nameAndType?.get(1) != null) ".${nameAndType[1]}" else ""}")
-                    i ++
-                } while (downloadFile.exists())
+            val downloadInfo = run {
+                val call = httpClient.get("http://${device.ip}:${device.port}/downloadInfo?messageId=${deviceMessage.oppositeId}").call
+                val status = call.response.status
+                if (status == HttpStatusCode.OK) {
+                    Gson().fromJson(call.response.bodyAsText(), DownloadInfo::class.java)
+                } else {
+                    null
+                }
             }
-            downloadFile.createNewFile()
-            downloadFile
-        }
-        logger.info("file: ${file.absolutePath}")
-        httpClient.prepareGet("http://${device.ip}:${device.port}/download?messageId=${deviceMessage.oppositeId}") {
-            timeout {
-                requestTimeoutMillis = HttpTimeout.INFINITE_TIMEOUT_MS
+            if (downloadInfo == null) {
+                logger.info("downloadMessageFile: 下载失败")
+                return
             }
-        }.execute { response ->
-            val contentLength = response.headers[HttpHeaders.ContentLength]?.toLong() ?: 0L
-            var downloadSize = 0L
-            withContext(Dispatchers.IO) {
-                val startTime = Date()
-                val channel = response.bodyAsChannel()
-                while (!channel.isClosedForRead) {
-                    val packet =
-                        channel.readRemaining(limit = DEFAULT_BUFFER_SIZE.toLong())
-                    while (!packet.isEmpty) {
-                        val bytes = packet.readBytes()
-                        file.appendBytes(bytes)
-                        downloadSize += bytes.size
-//                        logger.info("下载进度: ${downloadSize.toDouble()/contentLength}, ${downloadSize}, ${contentLength}")
-                        async {
-                            deviceMessageDownloadEvent.doAction(FileProgress(messageId = deviceMessage.id, handleSize = downloadSize, totalSize = contentLength))
+            var downloadSize = run {
+                if (downloadInfo.hash == deviceMessage.fileHash) {
+                    deviceMessage.downloadSize ?: 0L
+                } else {
+                    0L
+                }
+            }
+            val totalSize = downloadInfo.size
+            deviceMessage.fileHash = downloadInfo.hash
+            deviceMessage.size = totalSize
+            deviceMessage.downloadSize = downloadSize
+            logger.info("已下载: ${downloadSize}, ${downloadInfo.hash}, ${deviceMessage.fileHash}")
+            val file = run {
+                deviceMessage.savePath.let { path ->
+                    if (downloadSize > 0 && path != null) {
+                        File(path)
+                    } else {
+                        val downloadPath = "${System.getProperty("user.home")}/Downloads"
+                        val dir = File(downloadPath)
+                        if (!dir.exists()) {
+                            dir.mkdirs()
                         }
+                        var downloadFile = File(downloadPath, filename)
+                        if (downloadFile.exists()) {
+                            val nameAndType = getFileNameAndType(filename)
+                            var i = 1
+                            do {
+                                downloadFile = File(downloadPath, "${nameAndType?.get(0)}(${i})${if (nameAndType?.get(1) != null) ".${nameAndType[1]}" else ""}")
+                                i ++
+                            } while (downloadFile.exists())
+                        }
+                        downloadFile.createNewFile()
+                        downloadFile
                     }
                 }
-                logger.info("下载用时: ${(Date().time - startTime.time)/1000}s")
-                deviceMessage.downloadSuccess = true
-                deviceMessage.downloadSize = downloadSize
-                deviceMessage.size = contentLength
-                deviceMessage.savePath = file.absolutePath
-                save(deviceMessage)
-                deviceMessageEvent.doAction(deviceMessage)
             }
+            logger.info("保存: ${file.absolutePath}")
+            deviceMessage.savePath = file.absolutePath
+            save(deviceMessage)
+            deviceMessageEvent.doAction(deviceMessage)
+            val startTime = Date()
+            var processSize = downloadSize
+            var handleSize = 0L
+            val chunkSize = queryOne<SysInfo>("select * from sys_info where name = 'chunkSize'")?.value?.toLong()
+                ?: (10 * 1024 * 1024L)
+            val concurrentCount = queryOne<SysInfo>("select * from sys_info where name = 'concurrentCount'")?.value?.toLong()
+                ?: 10
+            val fileParts = queryList<FilePart>("select * from file_part where device_message_id = ${deviceMessage.id} and file_hash = '${downloadInfo.hash}'")
+            val filePartMap = fileParts.groupBy { "${it.start}-${it.end}" }
+            val mutex = Mutex()
+            val processMutex = Mutex()
+            val saveMutex = Mutex()
+            suspend fun getRange(): Pair<Long, Long>? {
+                mutex.withLock {
+                    return if (handleSize < totalSize) {
+                        val range = Pair(handleSize, min(handleSize + chunkSize - 1, totalSize - 1))
+                        handleSize += range.second - range.first + 1
+                        logger.info("还有可下载数据, handleSize: ${handleSize}")
+                        range
+                    } else {
+                        logger.info("没有可下载数据, handleSize: ${handleSize}")
+                        null
+                    }
+                }
+            }
+            withContext(Dispatchers.IO) {
+                val fileChannel = RandomAccessFile(file, "rws").also {
+                    it.setLength(totalSize)
+                }.channel
+                fileChannel.use {
+                    (1..concurrentCount).map {
+                        async {
+                            withContext(Dispatchers.IO) {
+                                var range = getRange()
+                                while (range != null) {
+                                    val start = range.first
+                                    val end = range.second
+                                    if (filePartMap["${start}-${end}"] == null) {
+                                        var subHandleSize = 0L
+                                        httpClient.prepareGet("http://${device.ip}:${device.port}/download?messageId=${deviceMessage.oppositeId}") {
+                                            timeout {
+                                                connectTimeoutMillis = 300000
+                                                requestTimeoutMillis = HttpTimeout.INFINITE_TIMEOUT_MS
+                                            }
+                                            header("Range", "bytes=${start}-${end}")
+                                        }.execute { response ->
+                                            val contentLength = response.headers[HttpHeaders.ContentLength]?.toLong() ?: 0L
+                                            withContext(Dispatchers.IO) {
+                                                val channel = response.bodyAsChannel()
+                                                while (!channel.isClosedForRead) {
+                                                    val packet =
+                                                        channel.readRemaining(limit = DEFAULT_BUFFER_SIZE.toLong())
+                                                    while (!packet.isEmpty) {
+                                                        val bytes = packet.readBytes()
+                                                        fileChannel.write(ByteBuffer.wrap(bytes), start + subHandleSize)
+                                                        subHandleSize += bytes.size
+                                                        processMutex.withLock {
+                                                            processSize += bytes.size
+                                                            fileProgresses[deviceMessage.id] = FileProgress(
+                                                                messageId = deviceMessage.id,
+                                                                handleSize = processSize
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                                if (subHandleSize != contentLength) {
+                                                    throw RuntimeException("下载失败，流提前结束")
+                                                }
+                                            }
+                                        }
+                                        fileChannel.force(true)
+                                        saveMutex.withLock {
+                                            downloadSize += subHandleSize
+                                            deviceMessage.downloadSize = downloadSize
+                                            save(deviceMessage)
+                                            save(FilePart(
+                                                deviceMessageId = deviceMessage.id,
+                                                fileHash = downloadInfo.hash,
+                                                start = start,
+                                                end = end
+                                            ))
+                                        }
+                                    } else {
+                                        logger.info("已下载: ${start}, ${end}")
+                                    }
+                                    range = getRange()
+                                }
+                            }
+                        }
+                    }.awaitAll()
+                }
+            }
+            val saveHash = withContext(Dispatchers.IO) {
+                FileInputStream(file).use {
+                    hash(it)
+                }
+            }
+            logger.info("下载用时: ${(Date().time - startTime.time)/1000}s")
+            if (saveHash != downloadInfo.hash) {
+                deviceMessage.downloadSize = 0L
+                throw RuntimeException("数据完整性验证不通过: ${saveHash}, ${downloadInfo.hash}")
+            }
+            deviceMessage.downloadSuccess = true
+            deviceMessage.downloadSize = downloadSize
+            save(deviceMessage)
+            fileProgresses[deviceMessage.id] = null
+            deviceMessageEvent.doAction(deviceMessage)
+        } catch (e : Exception) {
+            logger.info("下载失败: ", e)
+            fileProgresses[deviceMessage.id] = null
+            deviceMessageEvent.doAction(deviceMessage)
         }
     }
 }
@@ -116,6 +253,19 @@ suspend fun exchangeDevice(ip: String?, port: Int?): Device? {
             return@transaction null
         }
     }
+}
+
+@Composable
+fun OnTimer(delay: Long = 500, block: suspend () -> Unit) {
+    val currentCoroutineScope = rememberCoroutineScope()
+    LaunchedEffect(delay, block = {
+        currentCoroutineScope.launch {
+            while (true) {
+                block()
+                delay(delay)
+            }
+        }
+    })
 }
 
 fun hash(inputStream: InputStream): String {

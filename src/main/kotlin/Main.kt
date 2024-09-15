@@ -51,10 +51,7 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.coroutines.*
-import model.Device
-import model.DeviceMessage
-import model.DeviceMessageParams
-import model.SysInfo
+import model.*
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import util.*
@@ -137,15 +134,18 @@ fun App() {
                     }
                 }
 
-
-                val fileProgressMap = remember {
-                    mutableStateMapOf<Long?, FileProgress?>()
+                var fileProgressMap by remember {
+                    mutableStateOf<Map<Long?, FileProgress?>?>(null)
                 }
 
-                OnDownloadProgressEvent(block = {
-                    fileProgressMap[it.messageId] = it
-                })
-
+                if (deviceMessages.any { it.type == "receive" && it.downloadSuccess != true }) {
+                    logger.info("定时任务")
+                    OnTimer(block = {
+                        fileProgressMap = mutableMapOf<Long?, FileProgress?>().also {
+                            it.putAll(fileProgresses)
+                        }
+                    })
+                }
                 LazyColumn(
                     modifier = Modifier.width(200.dp)
                 ) {
@@ -269,7 +269,7 @@ fun App() {
                                                         Column(
                                                             modifier = Modifier.weight(1f)
                                                         ) {
-                                                            val fileProgress = fileProgressMap[item.id]
+                                                            val fileProgress = fileProgressMap?.get(item.id)
                                                             if (item.filename != null) {
                                                                 Text(text = item.filename ?: "")
                                                                 Row(
@@ -289,13 +289,15 @@ fun App() {
                                                                         if (item.downloadSuccess == true) {
                                                                             Image(painter = painterResource("下载完成(3).svg"), contentDescription = "")
                                                                         } else if (fileProgress != null) {
-                                                                            CircularProgressIndicator(
-                                                                                progress = fileProgress.handleSize.toFloat()/fileProgress.totalSize
-                                                                            )
+                                                                            item.size?.let { size ->
+                                                                                CircularProgressIndicator(
+                                                                                    progress = fileProgress.handleSize.toFloat()/size
+                                                                                )
+                                                                            }
                                                                         }
                                                                     }
                                                                     Text(
-                                                                        text = "${fileProgress?.let { fileProgress ->  "${readableFileSize(fileProgress.handleSize)}/" } ?: ""}${readableFileSize(fileProgress?.totalSize ?: item.size)}",
+                                                                        text = "${fileProgress?.let { fileProgress ->  "${readableFileSize(fileProgress.handleSize)}/" } ?: ""}${readableFileSize(item.size ?: 0)}",
                                                                         fontWeight = FontWeight.Light, fontSize = 14.sp
                                                                     )
                                                                 }
@@ -630,7 +632,7 @@ fun main(args: Array<String>) = application {
             logger.info("测试: ${localTransactionManager.get()?.connection?.schema}")
             logger.info("select 1: ${queryMap("select 1")}")
             logger.info("表结构同步开始")
-            listOf(Device::class, DeviceMessage::class, SysInfo::class).forEach {
+            listOf(Device::class, DeviceMessage::class, SysInfo::class, FilePart::class).forEach {
                 logger.info("单表同步${it.simpleName}开始")
                 updateTableStruct(it)
                 logger.info("单表同步${it.simpleName}结束")

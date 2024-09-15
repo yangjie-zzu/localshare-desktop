@@ -22,16 +22,13 @@ import util.*
 import java.io.File
 import java.io.FileInputStream
 import java.net.InetAddress
+import java.net.URLEncoder
 import java.util.*
 import javax.jmdns.JmDNS
 import javax.jmdns.ServiceEvent
 import javax.jmdns.ServiceInfo
 import javax.jmdns.ServiceListener
 import javax.jmdns.ServiceTypeListener
-
-class FileProgress(val messageId: Long?, val handleSize: Long, val totalSize: Long)
-
-val deviceMessageDownloadEvent = Event<FileProgress>()
 
 fun startServer() {
     val httpPort = serverPort ?: return
@@ -93,7 +90,7 @@ fun startServer() {
                         deviceMessageEvent.doAction(deviceMessage)
                         downloadMessageFile(device, deviceMessage)
                     }
-                    call.respond(NullBody)
+                    call.respond(status = HttpStatusCode.OK, message = NullBody)
                     logger.info("/message回复")
                 }
 
@@ -110,7 +107,10 @@ fun startServer() {
                         } else {
                             call.response.header(
                                 HttpHeaders.ContentDisposition,
-                                ContentDisposition.Attachment.withParameter(ContentDisposition.Parameters.FileName, file.name).toString()
+                                ContentDisposition.Attachment.withParameter(ContentDisposition.Parameters.FileName,
+                                    withContext(Dispatchers.IO) {
+                                        URLEncoder.encode(file.name ?: "", "UTF-8")
+                                    }).toString()
                             )
                             call.respondFile(file = file)
                         }
@@ -141,21 +141,6 @@ fun startServer() {
         }
     }).start()
     startMDns()
-}
-
-@Composable
-fun OnDownloadProgressEvent(block: (data: FileProgress) -> Unit) {
-
-    var processTime by remember {
-        mutableStateOf(Date())
-    }
-
-    OnEvent(event = deviceMessageDownloadEvent, block = {
-        if (Date().time - processTime.time > 200 || (it.handleSize >= it.totalSize)) {
-            block(it)
-            processTime = Date()
-        }
-    })
 }
 
 fun startMDns() {
