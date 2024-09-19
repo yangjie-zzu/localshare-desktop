@@ -1,6 +1,6 @@
-package model
+package com.freefjay.localshare.desktop.model
 
-import util.Column
+import com.freefjay.localshare.desktop.util.Column
 
 data class FilePart(
     @Column(isPrimaryKey = true)

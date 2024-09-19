@@ -1,8 +1,8 @@
-package util
+package com.freefjay.localshare.desktop.util
 
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import logger
+import com.freefjay.localshare.desktop.logger
 import kotlin.coroutines.*
 
 val threadLocalQueueFlag = ThreadLocal<Boolean?>()

@@ -1,17 +1,10 @@
-package component
+package com.freefjay.localshare.desktop.component
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.text.LocalTextContextMenu
 import androidx.compose.foundation.text.TextContextMenu
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.platform.LocalTextToolbar
-import androidx.compose.ui.platform.TextToolbar
-import androidx.compose.ui.platform.TextToolbarStatus
-import logger
-import java.awt.Toolkit
-import java.awt.datatransfer.StringSelection
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

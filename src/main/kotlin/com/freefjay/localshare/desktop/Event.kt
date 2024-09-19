@@ -1,6 +1,8 @@
+package com.freefjay.localshare.desktop
+
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import model.DeviceMessage
+import com.freefjay.localshare.desktop.model.DeviceMessage
 
 class Event<T: Any?> {
     private val actions = mutableListOf<(data: T) -> Unit>()

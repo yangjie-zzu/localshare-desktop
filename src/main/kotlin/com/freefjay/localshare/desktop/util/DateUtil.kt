@@ -1,4 +1,4 @@
-package util
+package com.freefjay.localshare.desktop.util
 
 import org.jetbrains.skia.Pattern
 import java.text.SimpleDateFormat

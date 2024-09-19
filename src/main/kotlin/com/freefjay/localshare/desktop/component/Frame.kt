@@ -1,4 +1,4 @@
-package component
+package com.freefjay.localshare.desktop.component
 
 import androidx.compose.runtime.Composable
 

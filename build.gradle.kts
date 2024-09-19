@@ -1,4 +1,6 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import org.jetbrains.kotlin.daemon.common.isDaemonEnabled
+import java.nio.file.Path
 
 plugins {
     kotlin("jvm")
@@ -21,7 +23,7 @@ dependencies {
     // With compose.desktop.common you will also lose @Preview functionality
     implementation(compose.desktop.currentOs)
     implementation("io.ktor:ktor-server-core:2.3.12")
-    implementation("io.ktor:ktor-server-netty:2.3.12")
+    implementation("io.ktor:ktor-server-cio:2.3.12")
     implementation("io.ktor:ktor-server-call-logging:2.3.12")
     implementation("io.ktor:ktor-server-content-negotiation:2.3.12")
     implementation("io.ktor:ktor-serialization-gson:2.3.12")
@@ -39,12 +41,16 @@ dependencies {
 
 compose.desktop {
     application {
-        mainClass = "MainKt"
+        mainClass = "com.freefjay.localshare.desktop.MainKt"
 
+        buildTypes.release.proguard {
+            configurationFiles.from(project.file("rules.pro"))
+        }
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Exe, TargetFormat.Deb)
             packageName = "localshare-desktop"
             packageVersion = "1.0.0"
+            modules("java.instrument", "java.management", "java.sql", "jdk.unsupported", "java.naming", "jdk.charsets")
         }
     }
 }

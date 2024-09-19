@@ -1,14 +1,13 @@
-package util
+package com.freefjay.localshare.desktop.util
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import com.google.gson.Gson
-import deviceEvent
-import deviceMessageEvent
-import getDevice
-import httpClient
+import com.freefjay.localshare.desktop.deviceEvent
+import com.freefjay.localshare.desktop.deviceMessageEvent
+import com.freefjay.localshare.desktop.getDevice
+import com.freefjay.localshare.desktop.httpClient
 import io.ktor.client.call.*
 import io.ktor.client.plugins.*
 import io.ktor.client.request.*
@@ -18,12 +17,15 @@ import io.ktor.utils.io.core.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import logger
-import model.*
+import com.freefjay.localshare.desktop.logger
+import com.freefjay.localshare.desktop.model.*
 import java.io.File
 import java.io.FileInputStream
 import java.io.InputStream
 import java.io.RandomAccessFile
+import java.net.BindException
+import java.net.InetAddress
+import java.net.ServerSocket
 import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.*
@@ -284,4 +286,22 @@ fun hash(inputStream: InputStream): String {
         sb.append(((byte and 0xff.toByte()) + 0x100).toString(16).substring(1))
     }
     return sb.toString()
+}
+
+suspend fun getFreePort(startPort: Int = 20000): Int? {
+    return withContext(Dispatchers.IO) {
+        val inetAddress = InetAddress.getByName("127.0.0.1")
+        var port = startPort
+        while (port < 65536) {
+            try {
+                ServerSocket(port, 10, inetAddress).use {
+
+                }
+                return@withContext port
+            } catch (_: BindException) {
+            }
+            port += 1
+        }
+        return@withContext null
+    }
 }

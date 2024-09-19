@@ -1,4 +1,4 @@
-package util
+package com.freefjay.localshare.desktop.util
 
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat

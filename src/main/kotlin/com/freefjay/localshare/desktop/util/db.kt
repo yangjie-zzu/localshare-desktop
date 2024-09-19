@@ -1,9 +1,11 @@
-package util
+package com.freefjay.localshare.desktop.util
 
 import kotlinx.coroutines.asContextElement
-import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.withContext
-import logger
+import com.freefjay.localshare.desktop.logger
+import com.freefjay.localshare.desktop.model.SqliteMaster
+import java.lang.Double
+import java.lang.Float
+import java.lang.Long
 import java.lang.reflect.Type
 import java.math.BigDecimal
 import java.sql.Connection
@@ -11,9 +13,7 @@ import java.sql.DriverManager
 import java.sql.Statement
 import java.sql.Types
 import java.util.Date
-import java.util.concurrent.Executors
 import java.util.regex.Pattern
-import kotlin.concurrent.getOrSet
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import kotlin.reflect.KClass
@@ -44,8 +44,6 @@ data class ColumnInfo (
     val javaType: Type? = null,
     val kProperty: KProperty<*>? = null
 )
-
-data class SqliteMaster(val sql: String?)
 
 fun getSqliteType(clazz: Type?): String? {
     return when (clazz) {
@@ -93,7 +91,7 @@ suspend fun <T> transaction(name: String? = null, block: suspend () -> T): T {
     return taskQueue.execute(context = localTransactionManager.asContextElement(conn)) {
         conn.connection.use {
             try {
-                logger.info("------------------- 开始${if (isSub) "子" else "" }事务${name?.let {s -> "-${s}-" } ?: ""}(${Thread.currentThread().threadId()}) ------------------------")
+                logger.info("------------------- 开始${if (isSub) "子" else "" }事务${name?.let { s -> "-${s}-" } ?: ""}(${Thread.currentThread().id}) ------------------------")
                 it.autoCommit = false
                 val result = block()
                 it.commit()
@@ -103,7 +101,7 @@ suspend fun <T> transaction(name: String? = null, block: suspend () -> T): T {
                 throw e
             } finally {
                 it.autoCommit = true
-                logger.info("------------------- 结束${if (isSub) "子" else "" }事务${name?.let {s -> "-${s}-" } ?: ""}(${Thread.currentThread().threadId()}) ------------------------")
+                logger.info("------------------- 结束${if (isSub) "子" else "" }事务${name?.let { s -> "-${s}-" } ?: ""}(${Thread.currentThread().id}) ------------------------")
             }
         }
     }
@@ -177,10 +175,10 @@ suspend inline fun <reified T> queryList(sql: String?, args: Array<String>? = nu
                                 val index = resultSet.findColumn(colName)
                                 when (parameter.type.javaType) {
                                     String::class.java -> resultSet.getString(index)
-                                    java.lang.Integer::class.java -> resultSet.getInt(index)
-                                    java.lang.Long::class.java -> resultSet.getLong(index)
-                                    java.lang.Float::class.java -> resultSet.getFloat(index)
-                                    java.lang.Double::class.java -> resultSet.getDouble(index)
+                                    Integer::class.java -> resultSet.getInt(index)
+                                    Long::class.java -> resultSet.getLong(index)
+                                    Float::class.java -> resultSet.getFloat(index)
+                                    Double::class.java -> resultSet.getDouble(index)
                                     BigDecimal::class.java -> if (resultSet.getString(index) != null) BigDecimal(resultSet.getString(index)) else null
                                     ByteArray::class.java -> resultSet.getBlob(index)
                                     Date::class.java -> resultSet.getString(index)?.toDate()
@@ -245,7 +243,7 @@ suspend inline fun <reified T : Any> save(data: T) {
                     null
                 }
                 logger.info("primaryKeyColumn: $primaryKeyColumn")
-                if ((primaryKeyColumn?.kProperty is KMutableProperty) && primaryKeyColumn.javaType == java.lang.Long::class.java && id != -1L) {
+                if ((primaryKeyColumn?.kProperty is KMutableProperty) && primaryKeyColumn.javaType == Long::class.java && id != -1L) {
                     primaryKeyColumn.kProperty.setter.call(data, id)
                 }
             } else {

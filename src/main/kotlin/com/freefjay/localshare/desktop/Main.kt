@@ -1,3 +1,5 @@
+package com.freefjay.localshare.desktop
+
 import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -5,8 +7,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.LocalTextContextMenu
-import androidx.compose.foundation.text.TextContextMenu
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.window.WindowDraggableArea
 import androidx.compose.material.*
@@ -16,7 +16,6 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerButton
@@ -24,7 +23,6 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLocalization
-import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.PlatformLocalization
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
@@ -43,23 +41,21 @@ import com.google.gson.Gson
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import com.google.zxing.qrcode.encoder.Encoder
-import component.CustomContextMenu
-import component.Frame
+import com.freefjay.localshare.desktop.component.CustomContextMenu
+import com.freefjay.localshare.desktop.component.Frame
+import com.freefjay.localshare.desktop.model.*
+import com.freefjay.localshare.desktop.util.*
 import io.ktor.client.*
 import io.ktor.client.plugins.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.coroutines.*
-import model.*
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import util.*
-import java.awt.Desktop
 import java.awt.GraphicsEnvironment
 import java.io.File
 import java.net.InetAddress
-import java.nio.charset.Charset
 import java.util.*
 import kotlin.collections.List
 
@@ -86,7 +82,7 @@ fun App() {
                 }
                 val requestDevices = suspend {
                     val list = queryList<Device>("select * from device")
-                    logger.info("deviceIds: ${list.joinToString { "${it.id}" }}")
+                    logger.info("deviceIds: ${list.joinToString { "${it.clientCode}" }}")
                     devices = list
                 }
                 LaunchedEffect(Unit) {
@@ -460,13 +456,15 @@ fun App() {
                                                     connectTimeoutMillis = 30000
                                                     requestTimeoutMillis = 5000
                                                 }
-                                                val deviceMessageParams = Gson().toJson(DeviceMessageParams(
+                                                val deviceMessageParams = Gson().toJson(
+                                                    DeviceMessageParams(
                                                     sendId = deviceMessage.id,
                                                     clientCode = clientCode,
                                                     content = deviceMessage.content,
                                                     filename = deviceMessage.filename,
                                                     size = deviceMessage.size
-                                                ))
+                                                )
+                                                )
                                                 logger.info("deviceMessageParams: {}", deviceMessageParams)
                                                 setBody(
                                                     deviceMessageParams
@@ -588,7 +586,7 @@ val LocalApplication = compositionLocalOf<ApplicationScope?> { null }
 
 val LocalWindow = compositionLocalOf<WindowState?> { null }
 
-var serverPort: Int? = 2000
+var serverPort: Int? = null
 
 var clientCode: String? = null
 
@@ -606,26 +604,6 @@ fun getDevice(): Device {
 @OptIn(ExperimentalComposeUiApi::class)
 fun main(args: Array<String>) = application {
     logger.info("args: ${args.joinToString { it }}")
-    CoroutineScope(Dispatchers.IO).launch {
-        val taskQueue = TaskQueue()
-        taskQueue.execute {
-            logger.info("任务1")
-            taskQueue.execute {
-                logger.info("任务2")
-                taskQueue.execute {
-                    logger.info("任务2.1")
-                }
-            }
-            logger.info("任务3")
-        }
-    }
-    serverPort = kotlin.run {
-        if (args.isNotEmpty()) {
-            args[0].toInt()
-        } else {
-            20000
-        }
-    }
     val app = this
     CoroutineScope(Dispatchers.Default).launch {
         transaction {

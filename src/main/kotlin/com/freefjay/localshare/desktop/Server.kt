@@ -1,24 +1,23 @@
-import androidx.compose.runtime.*
+package com.freefjay.localshare.desktop
+
 import com.google.gson.Gson
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
-import io.ktor.server.netty.*
 import io.ktor.server.plugins.partialcontent.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.core.*
 import kotlinx.coroutines.*
-import model.Device
-import model.DeviceMessage
-import model.DeviceMessageParams
-import model.DownloadInfo
+import com.freefjay.localshare.desktop.model.Device
+import com.freefjay.localshare.desktop.model.DeviceMessage
+import com.freefjay.localshare.desktop.model.DeviceMessageParams
+import com.freefjay.localshare.desktop.model.DownloadInfo
+import com.freefjay.localshare.desktop.util.*
+import io.ktor.server.cio.*
 import org.slf4j.LoggerFactory
-import util.*
 import java.io.File
 import java.io.FileInputStream
 import java.net.InetAddress
@@ -28,14 +27,14 @@ import javax.jmdns.JmDNS
 import javax.jmdns.ServiceEvent
 import javax.jmdns.ServiceInfo
 import javax.jmdns.ServiceListener
-import javax.jmdns.ServiceTypeListener
 
-fun startServer() {
-    val httpPort = serverPort ?: return
-    embeddedServer(Netty, applicationEngineEnvironment {
+suspend fun startServer() {
+    val freePort = getFreePort() ?: throw RuntimeException("not found port")
+    serverPort = freePort
+    embeddedServer(CIO, applicationEngineEnvironment {
         log = LoggerFactory.getLogger("ktor.server")
         connector {
-            port = httpPort
+            port = freePort
         }
         module {
             install(PartialContent)
@@ -129,10 +128,12 @@ fun startServer() {
                             call.respond(status = HttpStatusCode.NotFound, "not found file")
                         } else {
                             FileInputStream(file).use {
-                                call.respondText(Gson().toJson(DownloadInfo(
+                                call.respondText(Gson().toJson(
+                                    DownloadInfo(
                                     size = file.length(),
                                     hash = hash(it)
-                                )))
+                                )
+                                ))
                             }
                         }
                     }
