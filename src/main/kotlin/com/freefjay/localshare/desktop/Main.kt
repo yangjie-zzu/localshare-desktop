@@ -684,7 +684,7 @@ fun main(args: Array<String>) = application {
                                         }.fillMaxHeight().padding(start = 5.dp, end = 5.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Text("菜单", fontSize = 12.sp, lineHeight = 12.sp)
+                                        Text("菜单(${Locale.getDefault().displayName})", fontSize = 12.sp, lineHeight = 12.sp)
                                     }
                                 }
                                 Row {
