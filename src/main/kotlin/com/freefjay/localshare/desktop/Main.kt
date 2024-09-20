@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLocalization
 import androidx.compose.ui.platform.PlatformLocalization
@@ -54,6 +55,11 @@ import kotlinx.coroutines.*
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.awt.GraphicsEnvironment
+import java.awt.Toolkit
+import java.awt.datatransfer.Clipboard
+import java.awt.datatransfer.ClipboardOwner
+import java.awt.datatransfer.DataFlavor
+import java.awt.datatransfer.Transferable
 import java.io.File
 import java.net.InetAddress
 import java.util.*
@@ -483,7 +489,15 @@ fun App() {
                                 TextField(
                                     value = content ?: "",
                                     onValueChange = { content = it }, placeholder = { Text(text = "输入要发送的文字") },
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier.fillMaxWidth().onPasted {
+                                        val systemClipboard = Toolkit.getDefaultToolkit().systemClipboard
+                                        if (systemClipboard.isDataFlavorAvailable(DataFlavor.javaFileListFlavor)) {
+                                            val files = systemClipboard.getData(DataFlavor.javaFileListFlavor) as List<File>
+                                            if (files.isNotEmpty()) {
+                                                file = files.firstOrNull()
+                                            }
+                                        }
+                                    },
                                 )
                                 Button(
                                     onClick = {

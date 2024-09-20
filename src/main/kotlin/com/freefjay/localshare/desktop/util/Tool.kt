@@ -3,6 +3,11 @@ package com.freefjay.localshare.desktop.util
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
 import com.google.gson.Gson
 import com.freefjay.localshare.desktop.deviceEvent
 import com.freefjay.localshare.desktop.deviceMessageEvent
@@ -303,5 +308,16 @@ suspend fun getFreePort(startPort: Int = 20000): Int? {
             port += 1
         }
         return@withContext null
+    }
+}
+
+fun Modifier.onPasted(block: () -> Unit): Modifier {
+    return this.onKeyEvent {
+        if (it.isCtrlPressed && it.key == Key.V) {
+            block()
+            true
+        } else {
+            false
+        }
     }
 }

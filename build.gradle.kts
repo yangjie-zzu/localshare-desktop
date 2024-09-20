@@ -51,6 +51,9 @@ compose.desktop {
             packageName = "localshare-desktop"
             packageVersion = "1.0.0"
             modules("java.instrument", "java.management", "java.sql", "jdk.unsupported", "java.naming", "jdk.charsets")
+            windows {
+                shortcut = true
+            }
         }
     }
 }
