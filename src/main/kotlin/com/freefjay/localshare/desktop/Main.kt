@@ -620,6 +620,7 @@ fun main(args: Array<String>) = application {
     logger.info("args: ${args.joinToString { it }}")
     val app = this
     CoroutineScope(Dispatchers.Default).launch {
+        initDbPath()
         transaction {
             logger.info("测试: ${localTransactionManager.get()?.connection?.schema}")
             logger.info("select 1: ${queryMap("select 1")}")

@@ -3,6 +3,9 @@ package com.freefjay.localshare.desktop.util
 import kotlinx.coroutines.asContextElement
 import com.freefjay.localshare.desktop.logger
 import com.freefjay.localshare.desktop.model.SqliteMaster
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 import java.lang.Double
 import java.lang.Float
 import java.lang.Long
@@ -66,7 +69,19 @@ class ConnInfo(
     val parent: ConnInfo? = null
 )
 
-fun getDbConn(): Connection = DriverManager.getConnection("jdbc:sqlite:share.db")
+val dbPath = "${System.getProperty("user.home")}/.localShare/share.db"
+
+suspend fun initDbPath() {
+    withContext(Dispatchers.IO) {
+        val file = File(dbPath)
+        val parent = file.parentFile
+        if (!parent.exists()) {
+            parent.mkdirs()
+        }
+    }
+}
+
+fun getDbConn(): Connection = DriverManager.getConnection("jdbc:sqlite:${dbPath}")
 
 fun runSql(block: (conn: Connection) -> Unit) {
     val conn = localTransactionManager.get()
