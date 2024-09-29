@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.*
 import com.darkrockstudios.libraries.mpfilepicker.FilePicker
+import com.freefjay.localshare.desktop.component.ActionButton
 import com.google.gson.Gson
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
@@ -442,8 +443,8 @@ fun App() {
                                         }
                                     }
                                 }
-                                fun sendMsg() {
-                                    CoroutineScope(Dispatchers.IO).launch {
+                                suspend fun sendMsg() {
+                                    withContext(Dispatchers.IO) {
                                         logger.info("开始发送")
                                         val deviceMessage = DeviceMessage(
                                             type = "send",
@@ -499,7 +500,7 @@ fun App() {
                                         }
                                     },
                                 )
-                                Button(
+                                ActionButton(
                                     onClick = {
                                         sendMsg()
                                     }
