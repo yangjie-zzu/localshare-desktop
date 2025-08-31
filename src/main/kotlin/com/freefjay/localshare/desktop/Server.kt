@@ -23,6 +23,7 @@ import java.io.FileInputStream
 import java.net.InetAddress
 import java.net.URLEncoder
 import java.util.*
+import java.util.regex.Pattern
 import javax.jmdns.JmDNS
 import javax.jmdns.ServiceEvent
 import javax.jmdns.ServiceInfo
@@ -173,7 +174,7 @@ fun startMDns() {
             val port = event?.info?.port
             if (event?.type == serviceType && event.name != device.clientCode) {
                 CoroutineScope(Dispatchers.IO).launch {
-                    exchangeDevice(ip?.toString(), port)
+                    exchangeDevice(ip?.toString()?.replace(Regex("^/"), ""), port)
                 }
             }
         }

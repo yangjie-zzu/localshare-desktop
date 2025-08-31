@@ -245,8 +245,8 @@ suspend fun exchangeDevice(ip: String?, port: Int?): Device? {
             }
             otherDevice.clientCode = deviceResult.clientCode
             otherDevice.name = deviceResult.name
-            otherDevice.ip = deviceResult.ip
-            otherDevice.port = deviceResult.port
+            otherDevice.ip = ip
+            otherDevice.port = port
             otherDevice.channelType = deviceResult.channelType
             otherDevice.osName = deviceResult.osName
             otherDevice.networkType = deviceResult.networkType
