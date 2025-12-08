@@ -1,6 +1,4 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
-import org.jetbrains.kotlin.daemon.common.isDaemonEnabled
-import java.nio.file.Path
 
 plugins {
     kotlin("jvm")
@@ -49,10 +47,11 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Exe, TargetFormat.Deb)
             packageName = "localshare-desktop"
-            packageVersion = "1.0.9"
+            packageVersion = "1.0.11"
             modules("java.instrument", "java.management", "java.sql", "jdk.unsupported", "java.naming", "jdk.charsets", "jdk.localedata")
             windows {
                 shortcut = true
+                iconFile.set(project.file("logo.ico"))
             }
         }
     }

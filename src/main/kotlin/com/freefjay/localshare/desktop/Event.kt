@@ -11,7 +11,7 @@ class Event<T: Any?> {
             it(data)
         }
     }
-    fun registerAction(onAction: (data: T) -> Unit): () -> Unit {
+    fun subscribe(onAction: (data: T) -> Unit): () -> Unit {
         actions.add(onAction)
         return {
             actions.remove(onAction)
@@ -26,7 +26,7 @@ val deviceMessageEvent = Event<DeviceMessage>()
 @Composable
 fun <T : Any?> OnEvent(event: Event<T>, block: (data: T) -> Unit) {
     DisposableEffect(event) {
-        val removeAction = event.registerAction(block)
+        val removeAction = event.subscribe(block)
         onDispose {
             removeAction.invoke()
         }
