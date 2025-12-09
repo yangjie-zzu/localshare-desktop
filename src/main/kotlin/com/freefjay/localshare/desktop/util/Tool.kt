@@ -39,19 +39,19 @@ import kotlin.math.min
 
 class FileProgress(val messageId: Long?, val handleSize: Long)
 
-val fileProgresses = mutableMapOf<Long?, FileProgress?>()
-val fileProgressMutex = Mutex()
+val downloadProgressMap = mutableMapOf<Long?, FileProgress?>()
+val downloadProgressMutex = Mutex()
 
 suspend fun downloadMessageFile(device: Device?, deviceMessage: DeviceMessage) {
     val filename = deviceMessage.filename
     if (device != null && filename != null) {
         try {
-            fileProgressMutex.withLock {
-                if (fileProgresses[deviceMessage.id] != null) {
+            downloadProgressMutex.withLock {
+                if (downloadProgressMap[deviceMessage.id] != null) {
                     logger.info("正在下载, ${deviceMessage.id}")
                     return
                 }
-                fileProgresses[deviceMessage.id] = FileProgress(
+                downloadProgressMap[deviceMessage.id] = FileProgress(
                     messageId = deviceMessage.id,
                     handleSize = 0
                 )
@@ -167,7 +167,7 @@ suspend fun downloadMessageFile(device: Device?, deviceMessage: DeviceMessage) {
                                                         subHandleSize += bytes.size
                                                         processMutex.withLock {
                                                             processSize += bytes.size
-                                                            fileProgresses[deviceMessage.id] = FileProgress(
+                                                            downloadProgressMap[deviceMessage.id] = FileProgress(
                                                                 messageId = deviceMessage.id,
                                                                 handleSize = processSize
                                                             )
@@ -214,11 +214,11 @@ suspend fun downloadMessageFile(device: Device?, deviceMessage: DeviceMessage) {
             deviceMessage.downloadSuccess = true
             deviceMessage.downloadSize = downloadSize
             save(deviceMessage)
-            fileProgresses[deviceMessage.id] = null
+            downloadProgressMap[deviceMessage.id] = null
             deviceMessageEvent.doAction(deviceMessage)
         } catch (e : Exception) {
             logger.info("下载失败: ", e)
-            fileProgresses[deviceMessage.id] = null
+            downloadProgressMap[deviceMessage.id] = null
             deviceMessageEvent.doAction(deviceMessage)
         }
     }

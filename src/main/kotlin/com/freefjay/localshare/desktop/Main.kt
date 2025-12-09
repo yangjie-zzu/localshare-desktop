@@ -132,7 +132,8 @@ fun main(args: Array<String>) = application {
             onCloseRequest = ::exitApplication,
             title = "文件分享",
             state = windowState,
-            undecorated = true
+            undecorated = true,
+            icon = painterResource("logo.ico")
         ) {
             CompositionLocalProvider(
                 LocalLocalization provides object : PlatformLocalization {
