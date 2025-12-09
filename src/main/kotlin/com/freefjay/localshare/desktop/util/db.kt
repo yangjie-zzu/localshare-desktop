@@ -3,6 +3,7 @@ package com.freefjay.localshare.desktop.util
 import kotlinx.coroutines.asContextElement
 import com.freefjay.localshare.desktop.logger
 import com.freefjay.localshare.desktop.model.SqliteMaster
+import io.ktor.util.logging.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -101,22 +102,22 @@ suspend fun <T> transaction(name: String? = null, block: suspend () -> T): T {
         connection = parentConnInfo?.connection ?: getDbConn(),
         parent = parentConnInfo
     )
-    logger.info("${name?.let { "-${it}-" } ?: ""}连接信息: ${conn.transactionName}, ${conn.parent?.transactionName}")
+//    logger.info("${name?.let { "-${it}-" } ?: ""}连接信息: ${conn.transactionName}, ${conn.parent?.transactionName}")
     val isSub = threadLocalQueueFlag.get() == true
     return taskQueue.execute(context = localTransactionManager.asContextElement(conn)) {
         conn.connection.use {
             try {
-                logger.info("------------------- 开始${if (isSub) "子" else "" }事务${name?.let { s -> "-${s}-" } ?: ""}(${Thread.currentThread().id}) ------------------------")
+//                logger.info("------------------- 开始${if (isSub) "子" else "" }事务${name?.let { s -> "-${s}-" } ?: ""}(${Thread.currentThread().id}) ------------------------")
                 it.autoCommit = false
                 val result = block()
                 it.commit()
                 result
-            } catch (e : Exception) {
+            } catch (e: Exception) {
                 it.rollback()
                 throw e
             } finally {
                 it.autoCommit = true
-                logger.info("------------------- 结束${if (isSub) "子" else "" }事务${name?.let { s -> "-${s}-" } ?: ""}(${Thread.currentThread().id}) ------------------------")
+//                logger.info("------------------- 结束${if (isSub) "子" else "" }事务${name?.let { s -> "-${s}-" } ?: ""}(${Thread.currentThread().id}) ------------------------")
             }
         }
     }

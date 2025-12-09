@@ -12,5 +12,6 @@ data class Device(
     var channelType: String? = null,
     var osName: String? = null,
     var networkType: String? = null,
-    var wifiName: String? = null
+    var wifiName: String? = null,
+    var lastTime: Long? = null
 )

@@ -169,10 +169,11 @@ fun startMDns() {
         }
 
         override fun serviceResolved(event: ServiceEvent?) {
-            logger.info("解析设备: ${event?.type}, ${event?.name}, ${event?.info?.inet4Addresses?.joinToString { it.toString() }}, ${event?.info?.port}")
+            logger.info("解析设备信息: type=${event?.type}, name=${event?.name}, ip=${event?.info?.inet4Addresses?.joinToString { it.toString() }}, port=${event?.info?.port}")
             val ip = event?.info?.inet4Addresses?.firstOrNull()
             val port = event?.info?.port
             if (event?.type == serviceType && event.name != device.clientCode) {
+                logger.info("请求设备: ${ip}, ${port}")
                 CoroutineScope(Dispatchers.IO).launch {
                     exchangeDevice(ip?.toString()?.replace(Regex("^/"), ""), port)
                 }

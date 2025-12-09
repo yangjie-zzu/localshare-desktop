@@ -24,6 +24,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import com.freefjay.localshare.desktop.logger
 import com.freefjay.localshare.desktop.model.*
+import io.ktor.util.logging.*
 import java.io.File
 import java.io.FileInputStream
 import java.io.InputStream
@@ -226,38 +227,47 @@ suspend fun downloadMessageFile(device: Device?, deviceMessage: DeviceMessage) {
 
 suspend fun exchangeDevice(ip: String?, port: Int?): Device? {
     return transaction {
-        if (ip == null || port == null) {
-            return@transaction null
-        }
-        val response = httpClient.post("http://${ip}:${port}/exchange") {
-            setBody(Gson().toJson(getDevice()))
-            contentType(ContentType.Application.Json)
-        }
-        logger.info("status: ${response.status}")
-        if (response.status == HttpStatusCode.OK) {
-            val body = response.body<String>()
-            logger.info("body: $body")
-            val deviceResult = Gson().fromJson(body, Device::class.java)
-            var otherDevice = queryList<Device>("select * from device where client_code = '${deviceResult.clientCode}'").firstOrNull()
-            logger.info("otherDevice: {}", otherDevice)
-            if (otherDevice == null) {
-                otherDevice = Device()
+        try {
+            if (ip == null || port == null) {
+                return@transaction null
             }
-            otherDevice.clientCode = deviceResult.clientCode
-            otherDevice.name = deviceResult.name
-            otherDevice.ip = ip
-            otherDevice.port = port
-            otherDevice.channelType = deviceResult.channelType
-            otherDevice.osName = deviceResult.osName
-            otherDevice.networkType = deviceResult.networkType
-            otherDevice.wifiName = deviceResult.wifiName
-            save(otherDevice)
-            CoroutineScope(Dispatchers.IO).launch {
-                deviceEvent.doAction(Unit)
+            val response = httpClient.post("http://${ip}:${port}/exchange") {
+                setBody(Gson().toJson(getDevice()))
+                contentType(ContentType.Application.Json)
+                timeout {
+                    connectTimeoutMillis = 60000
+                }
             }
-            return@transaction otherDevice
-        } else {
-            return@transaction null
+            logger.info("status: ${response.status}")
+            if (response.status == HttpStatusCode.OK) {
+                val body = response.body<String>()
+                logger.info("body: $body")
+                val deviceResult = Gson().fromJson(body, Device::class.java)
+                var otherDevice = queryList<Device>("select * from device where client_code = '${deviceResult.clientCode}'").firstOrNull()
+                logger.info("otherDevice: {}", otherDevice)
+                if (otherDevice == null) {
+                    otherDevice = Device()
+                }
+                otherDevice.clientCode = deviceResult.clientCode
+                otherDevice.name = deviceResult.name
+                otherDevice.ip = ip
+                otherDevice.port = port
+                otherDevice.channelType = deviceResult.channelType
+                otherDevice.osName = deviceResult.osName
+                otherDevice.networkType = deviceResult.networkType
+                otherDevice.wifiName = deviceResult.wifiName
+                otherDevice.lastTime = System.currentTimeMillis()
+                save(otherDevice)
+                CoroutineScope(Dispatchers.IO).launch {
+                    deviceEvent.doAction(Unit)
+                }
+                return@transaction otherDevice
+            } else {
+                return@transaction null
+            }
+        } catch (e: Exception) {
+            logger.error("exchangeDevice错误，ip=${ip}, port=${port}", e)
+            throw e
         }
     }
 }

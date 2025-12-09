@@ -25,7 +25,7 @@ class TaskQueue(
         block: suspend () -> T
     ): T {
         val flag = threadLocalQueueFlag.get()
-        logger.info("是否在队列中：${flag}")
+//        logger.info("是否在队列中：${flag}")
         return if (flag == true) {
             block()
         } else {
