@@ -189,15 +189,16 @@ suspend inline fun <reified T> queryList(sql: String?, args: Array<String>? = nu
                             val colName = parameter.name?.toUnderCase()
                             if (colName != null) {
                                 val index = resultSet.findColumn(colName)
+                                val obj = resultSet.getObject(index)
                                 when (parameter.type.javaType) {
-                                    String::class.java -> resultSet.getString(index)
-                                    Integer::class.java -> resultSet.getInt(index)
-                                    Long::class.java -> resultSet.getLong(index)
-                                    Float::class.java -> resultSet.getFloat(index)
-                                    Double::class.java -> resultSet.getDouble(index)
+                                    String::class.java -> if (obj == null) null else resultSet.getString(index)
+                                    Integer::class.java -> if (obj == null) null else resultSet.getInt(index)
+                                    Long::class.java -> if (obj == null) null else resultSet.getLong(index)
+                                    Float::class.java -> if (obj == null) null else resultSet.getFloat(index)
+                                    Double::class.java -> if (obj == null) null else resultSet.getDouble(index)
                                     BigDecimal::class.java -> if (resultSet.getString(index) != null) BigDecimal(resultSet.getString(index)) else null
-                                    ByteArray::class.java -> resultSet.getBlob(index)
-                                    Date::class.java -> resultSet.getString(index)?.toDate()
+                                    ByteArray::class.java -> if (obj == null) null else resultSet.getBlob(index)
+                                    Date::class.java -> if (obj == null) null else resultSet.getString(index)?.toDate()
                                     java.lang.Boolean::class.java -> (resultSet.getInt(index)).let { if (it == 0) false else if (it == 1) true else null }
                                     else -> null
                                 }

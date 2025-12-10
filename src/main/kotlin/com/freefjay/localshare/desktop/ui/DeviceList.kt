@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import com.freefjay.localshare.desktop.OnEvent
 import com.freefjay.localshare.desktop.deviceEvent
+import com.freefjay.localshare.desktop.logger
 import com.freefjay.localshare.desktop.model.Device
 import com.freefjay.localshare.desktop.util.delete
 import com.freefjay.localshare.desktop.util.queryList
@@ -145,21 +146,22 @@ fun DeviceList(
                         Text("${item.ip}:${item.port}", fontSize = 12.sp)
                         val now = System.currentTimeMillis()
                         val lastTime = item.lastTime
-                        Text(
-                            if (lastTime == null) {
-                                ""
-                            } else {
-                                val delta = now - lastTime
-                                if (delta <= 6000) {
-                                    "最近"
-                                } else if (delta < 60 * 60 * 1000) {
-                                    "${floor((delta / (60 * 1000)).toDouble()).toInt()}分钟前"
-                                } else if (delta < 24 * 60 * 60 * 1000) {
-                                    "${floor((delta / (60 * 60 * 1000)).toDouble()).toInt()}小时前"
-                                } else {
-                                    "${floor((delta / (24 * 60 * 60 * 1000)).toDouble()).toInt()}天前"
-                                }
-                            }, fontSize = 10.sp)
+                        if (lastTime != null) {
+                            Text(
+                                run {
+                                    val delta = now - lastTime
+                                    if (delta <= 6000) {
+                                        "最近"
+                                    } else if (delta < 60 * 60 * 1000) {
+                                        "${floor((delta / (60 * 1000)).toDouble()).toInt()}分钟前"
+                                    } else if (delta < 24 * 60 * 60 * 1000) {
+                                        "${floor((delta / (60 * 60 * 1000)).toDouble()).toInt()}小时前"
+                                    } else {
+                                        "${floor((delta / (24 * 60 * 60 * 1000)).toDouble()).toInt()}天前"
+                                    }
+                                }, fontSize = 10.sp)
+
+                        }
                     }
                 }
                 Divider()
