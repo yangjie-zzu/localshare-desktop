@@ -5,6 +5,8 @@ import androidx.compose.material.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import com.freefjay.localshare.desktop.logger
+import io.ktor.util.logging.*
 import kotlinx.coroutines.launch
 
 @Composable
@@ -30,6 +32,7 @@ fun ActionButton(
                     errMsg = null
                     onClick()
                 } catch (e : Exception) {
+                    logger.error(e)
                     errMsg = e.message
                 } finally {
                     enabled = true
@@ -40,6 +43,6 @@ fun ActionButton(
         content()
     }
     if (errMsg != null) {
-        Text(errMsg ?: "", color = Color.Red, maxLines = 1)
+        Text(errMsg ?: "", color = Color.Red)
     }
 }

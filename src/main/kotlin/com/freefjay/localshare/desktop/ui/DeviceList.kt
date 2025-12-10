@@ -150,7 +150,7 @@ fun DeviceList(
                             Text(
                                 run {
                                     val delta = now - lastTime
-                                    if (delta <= 6000) {
+                                    if (delta <= 60000) {
                                         "最近"
                                     } else if (delta < 60 * 60 * 1000) {
                                         "${floor((delta / (60 * 1000)).toDouble()).toInt()}分钟前"

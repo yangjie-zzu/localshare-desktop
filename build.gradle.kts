@@ -47,7 +47,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Exe, TargetFormat.Deb)
             packageName = "LocalShare"
-            packageVersion = "1.0.15"
+            packageVersion = "1.0.16"
             modules("java.instrument", "java.management", "java.sql", "jdk.unsupported", "java.naming", "jdk.charsets", "jdk.localedata")
             windows {
                 shortcut = true
