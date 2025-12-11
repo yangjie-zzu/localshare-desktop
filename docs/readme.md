@@ -12,7 +12,10 @@ LocalShare支持文本、文件的发送(目前仅支持windows和android平台)
 ![pc端截图](/docs/pc.png)
 
 ### 移动端
-![设备界面截图](/docs/app1.jpg)![聊天界面截图](/docs/app2.jpg)
+<div style="display: flex; gap: 10px;">
+<img src="app1.jpg" alt="" style="min-width: 0; flex: 1;"/>
+<img src="app2.jpg" alt="" style="min-width: 0; flex: 1;">
+</div>
 
 ## 开发框架
 pc端: Jetpack Compose Desktop
