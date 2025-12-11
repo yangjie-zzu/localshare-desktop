@@ -25,7 +25,7 @@ val deviceMessageEvent = Event<DeviceMessage>()
 
 @Composable
 fun <T : Any?> OnEvent(event: Event<T>, block: (data: T) -> Unit) {
-    DisposableEffect(event) {
+    DisposableEffect(event, block) {
         val removeAction = event.subscribe(block)
         onDispose {
             removeAction.invoke()

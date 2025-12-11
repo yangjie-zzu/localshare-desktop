@@ -69,16 +69,18 @@ fun Chat(
     }
 
     LaunchedEffect(activeDevice?.id) {
+        logger.info("activeDevice.id: ${activeDevice?.id}")
         requestMessages(activeDevice?.id)
     }
 
-    OnEvent(deviceMessageEvent) {
+    OnEvent(deviceMessageEvent, remember(activeDevice?.id) { {
+        logger.info("消息事件监听, ${it.deviceId}, ${activeDevice?.id}")
         if (it.deviceId == activeDevice?.id) {
             currentCoroutineScope.launch {
                 requestMessages(activeDevice?.id)
             }
         }
-    }
+    } })
 
     if (deviceMessages.any { it.type == "receive" && it.downloadSuccess != true }) {
         logger.info("下载进度处理")
