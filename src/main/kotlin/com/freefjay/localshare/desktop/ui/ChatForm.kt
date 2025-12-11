@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.darkrockstudios.libraries.mpfilepicker.FilePicker
 import com.freefjay.localshare.desktop.clientCode
-import com.freefjay.localshare.desktop.component.ActionButton
+import com.freefjay.localshare.desktop.component.AsyncButton
 import com.freefjay.localshare.desktop.httpClient
 import com.freefjay.localshare.desktop.logger
 import com.freefjay.localshare.desktop.model.Device
@@ -193,7 +193,7 @@ fun ChatForm(
                 }
             },
         )
-        ActionButton(
+        AsyncButton(
             onClick = {
                 sendMsg()
             }

@@ -10,7 +10,7 @@ import io.ktor.util.logging.*
 import kotlinx.coroutines.launch
 
 @Composable
-fun ActionButton(
+fun AsyncButton(
     modifier: Modifier = Modifier,
     onClick: suspend () -> Unit,
     content: @Composable () -> Unit
